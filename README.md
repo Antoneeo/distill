@@ -14,6 +14,23 @@ decided on by humans. Two failure modes follow, and the skill targets both:
 
 ## Installation
 
+### Claude Code — plugin (recommended)
+
+```bash
+claude plugin marketplace add Antoneeo/distill
+claude plugin install distill@distill
+```
+
+This is the only channel that carries the **persistence hook**, which re-asserts the
+discipline once per turn so it does not drift over a long session. The hook is declared in
+the plugin manifest and loads with the plugin — nothing is written to your `settings.json`.
+
+**If you installed 0.2.0 and ran `distill-enable-persistence`**, run
+`distill-disable-persistence` *before* installing the plugin. Otherwise the reminder is
+injected twice per turn, once from your settings file and once from the plugin.
+
+### Gemini CLI, Codex, Antigravity — npm
+
 ```bash
 npm install -g @antoneeo/distill-skill@latest
 distill-install-skill
@@ -33,34 +50,34 @@ The installer copies `skills/distill/` into every detected client:
 
 Restart the relevant agent, or reload skills where the CLI supports it.
 
-## Persistence hook (optional, Claude Code only)
+## Persistence hook (Claude Code plugin only)
 
 A skill can drift: it is loaded once, applied to the first text, then quietly skipped as the
 session goes on. The doctrine says it must not lapse, but a clause telling an agent not to
 drift cannot itself prevent drift — the instruction is what fades. This hook re-asserts it
 once per turn.
 
+It arrives with the plugin — `.claude-plugin/plugin.json` declares it as a `UserPromptSubmit`
+hook and Claude Code loads it natively. There is nothing to enable, and nothing is written to
+your `settings.json`.
+
+To turn it off, disable or uninstall the plugin. The hook is one line of context (~15 tokens)
+per prompt and fails open: any internal error exits silently rather than blocking your prompt.
+
+Installing the skill via npm does **not** give you the hook. Only the plugin does, and only on
+Claude Code — Gemini CLI, Codex and Antigravity get the doctrine with no mechanism behind it.
+
+### Migrating from 0.2.0
+
+0.2.0 wired this hook by editing `~/.claude/settings.json`, via a `distill-enable-persistence`
+command that no longer exists. If you ran it:
+
 ```bash
-distill-enable-persistence     # opt in
-distill-disable-persistence    # opt out, keeps the skill installed
+distill-disable-persistence    # deprecated; removes the 0.2.0 wiring
 ```
 
-Enabling copies `distill-persist.js` into `~/.claude/hooks/` and appends one
-`UserPromptSubmit` entry to `~/.claude/settings.json`. It is **not** done by `npm install` —
-your settings file is yours, shared with every other tool that registers hooks, and a bad
-write there breaks Claude Code rather than merely breaking distill. So it takes a separate,
-deliberate command.
-
-What it guarantees:
-
-- Your existing hooks are appended to, never replaced. Entries from other tools are left
-  byte-identical.
-- A timestamped backup of `settings.json` is written before any modification.
-- The write is atomic, so an interrupted run cannot truncate the file.
-- A `settings.json` that does not parse is refused outright and left untouched.
-- Enabling twice is a no-op. Disabling removes only distill's entry and its own hook script.
-
-Cost: one line of context (~15 tokens) added to every prompt, for as long as it is enabled.
+Run it **before** installing the plugin, or the reminder is injected twice per turn. The
+command is retained for one version and will be removed in 0.4.0.
 
 ## Uninstalling
 
@@ -121,7 +138,7 @@ conversion.
 
 ## Status
 
-Version 0.2.0. The skill text has been through four evaluation iterations; its trigger
+Version 0.3.0. The skill text has been through four evaluation iterations; its trigger
 accuracy has **not** yet been measured against a labeled query set. Treat the trigger
 behavior as unvalidated.
 

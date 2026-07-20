@@ -2,6 +2,54 @@
 
 All notable changes to `@antoneeo/distill-skill`.
 
+## [0.3.0] — 2026-07-20
+
+The persistence hook now ships through the Claude Code plugin manifest. It no longer touches
+your `settings.json`.
+
+### Why this changed one version after 0.2.0
+
+0.2.0 justified its opt-in `settings.json` wiring partly on a claimed precedent: that caveman
+also required a deliberate install step for its hooks. That was wrong. Caveman declares hooks
+in `.claude-plugin/plugin.json` with `${CLAUDE_PLUGIN_ROOT}`, and Claude Code loads them
+natively when the plugin installs. The settings-merge module — which produced three blocking
+defects in review, including one that deleted a co-located third-party hook — existed to make
+safe an operation the platform never required.
+
+It also never got switched on. Between 0.2.0 shipping and this release, the persistence clause
+had no mechanism behind it anywhere.
+
+### Added
+
+- `.claude-plugin/plugin.json` — declares the `UserPromptSubmit` hook via `${CLAUDE_PLUGIN_ROOT}`.
+- `.claude-plugin/marketplace.json` — the repository is its own marketplace. Install with
+  `claude plugin marketplace add Antoneeo/distill && claude plugin install distill@distill`.
+- Tests asserting the manifest resolves to a file that exists, that the marketplace parses,
+  that the skill sits at the plugin-convention path `skills/distill/SKILL.md`, and that every
+  declared `bin` and `files` entry exists on disk.
+
+### Removed
+
+- `distill-enable-persistence`. Superseded by the plugin manifest.
+
+### Deprecated
+
+- `distill-disable-persistence`, retained for one version so anyone who ran the 0.2.0 enable
+  command can undo it. `scripts/settings.js` survives in removal-only form for the same reason —
+  the safe direction, since it deletes our own entry and creates none. Both go in 0.4.0.
+
+### Migration
+
+If you ran `distill-enable-persistence` on 0.2.0, run `distill-disable-persistence` **before**
+installing the plugin. Otherwise the reminder is injected twice per turn.
+
+### Unchanged
+
+The npm package still delivers the skill to Gemini CLI, Codex and Antigravity. Those clients
+get the doctrine and no hook. Note that caveman reaches its clients through each one's *native*
+install path rather than copying files into their directories; adopting that model would remove
+this package's hand-copying and its ownership-marker machinery entirely. Deferred, not rejected.
+
 ## [0.2.0] — 2026-07-20
 
 Two doctrine additions and the mechanism that backs the first, found by comparing distill

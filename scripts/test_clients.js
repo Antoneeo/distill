@@ -470,6 +470,51 @@ test('the uninstall bin unwires a hook even with no skills installed', () => {
   assert.strictEqual(fs.existsSync(hp), false, 'hook script removed');
 });
 
+// --- Claude Code plugin channel --------------------------------------------
+test('plugin manifest declares the hook against a path that exists', () => {
+  const root = path.join(__dirname, '..');
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, '.claude-plugin', 'plugin.json'), 'utf8'));
+  assert.strictEqual(manifest.name, 'distill');
+
+  const entries = manifest.hooks && manifest.hooks.UserPromptSubmit;
+  assert.ok(Array.isArray(entries) && entries.length > 0, 'must declare a UserPromptSubmit hook');
+  const cmd = entries[0].hooks[0].command;
+
+  assert.match(cmd, /\$\{CLAUDE_PLUGIN_ROOT\}/,
+    'must resolve through ${CLAUDE_PLUGIN_ROOT}, not an absolute path');
+  // The referenced script must actually exist at that location in the repo.
+  const rel = cmd.match(/\$\{CLAUDE_PLUGIN_ROOT\}\/([^"]+)/)[1];
+  assert.ok(fs.existsSync(path.join(root, rel)), `manifest points at a missing file: ${rel}`);
+});
+
+test('marketplace manifest parses and points at this repo', () => {
+  const root = path.join(__dirname, '..');
+  const mkt = JSON.parse(fs.readFileSync(path.join(root, '.claude-plugin', 'marketplace.json'), 'utf8'));
+  assert.ok(Array.isArray(mkt.plugins) && mkt.plugins.length === 1);
+  assert.strictEqual(mkt.plugins[0].name, 'distill');
+  assert.strictEqual(mkt.plugins[0].source, './');
+});
+
+test('the skill sits where the plugin convention requires', () => {
+  // Verified against the official discord/imessage/telegram plugins: skills/<name>/SKILL.md
+  const root = path.join(__dirname, '..');
+  assert.ok(fs.existsSync(path.join(root, 'skills', 'distill', 'SKILL.md')));
+});
+
+test('every declared bin points at a file that exists, and enable is gone', () => {
+  const root = path.join(__dirname, '..');
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  for (const [name, rel] of Object.entries(pkg.bin)) {
+    assert.ok(fs.existsSync(path.join(root, rel)), `bin ${name} points at missing ${rel}`);
+  }
+  assert.ok(!('distill-enable-persistence' in pkg.bin),
+    'the settings.json enable path is superseded by the plugin manifest');
+  // Everything in `files` must exist too, or the tarball silently ships short.
+  for (const rel of pkg.files) {
+    assert.ok(fs.existsSync(path.join(root, rel)), `files entry missing on disk: ${rel}`);
+  }
+});
+
 test('package.json and gemini-extension.json versions stay in sync', () => {
   const root = path.join(__dirname, '..');
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
