@@ -33,10 +33,39 @@ The installer copies `skills/distill/` into every detected client:
 
 Restart the relevant agent, or reload skills where the CLI supports it.
 
+## Persistence hook (optional, Claude Code only)
+
+A skill can drift: it is loaded once, applied to the first text, then quietly skipped as the
+session goes on. The doctrine says it must not lapse, but a clause telling an agent not to
+drift cannot itself prevent drift — the instruction is what fades. This hook re-asserts it
+once per turn.
+
+```bash
+distill-enable-persistence     # opt in
+distill-disable-persistence    # opt out, keeps the skill installed
+```
+
+Enabling copies `distill-persist.js` into `~/.claude/hooks/` and appends one
+`UserPromptSubmit` entry to `~/.claude/settings.json`. It is **not** done by `npm install` —
+your settings file is yours, shared with every other tool that registers hooks, and a bad
+write there breaks Claude Code rather than merely breaking distill. So it takes a separate,
+deliberate command.
+
+What it guarantees:
+
+- Your existing hooks are appended to, never replaced. Entries from other tools are left
+  byte-identical.
+- A timestamped backup of `settings.json` is written before any modification.
+- The write is atomic, so an interrupted run cannot truncate the file.
+- A `settings.json` that does not parse is refused outright and left untouched.
+- Enabling twice is a no-op. Disabling removes only distill's entry and its own hook script.
+
+Cost: one line of context (~15 tokens) added to every prompt, for as long as it is enabled.
+
 ## Uninstalling
 
 ```bash
-distill-uninstall-skill          # removes the installed skills
+distill-uninstall-skill          # removes the installed skills AND unwires the hook
 npm uninstall -g @antoneeo/distill-skill
 ```
 
@@ -92,9 +121,14 @@ conversion.
 
 ## Status
 
-Version 0.1.0. The skill text has been through four evaluation iterations; its trigger
+Version 0.2.0. The skill text has been through four evaluation iterations; its trigger
 accuracy has **not** yet been measured against a labeled query set. Treat the trigger
 behavior as unvalidated.
+
+If you remove the package with a bare `npm uninstall -g` while the persistence hook is
+enabled, the hook keeps injecting on every prompt: it lives in `~/.claude/hooks/` and
+survives the package. Run `distill-uninstall-skill` first, or remove the hook entry from
+`~/.claude/settings.json` and delete `~/.claude/hooks/distill-persist.js` by hand.
 
 ## License
 

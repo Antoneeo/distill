@@ -11,6 +11,7 @@
 // it; this command is the one the README tells users to run.
 
 const { CLIENTS, removeSkill } = require('./lib');
+const { removePersistence } = require('./persistence');
 
 console.log('\n--- distill Skill Removal ---');
 
@@ -19,8 +20,15 @@ for (const client of CLIENTS) {
   tally[removeSkill(client)] += 1;
 }
 
-if (tally.removed === 0 && tally.foreign === 0) {
-  console.log('ℹ️  Nothing to remove: no installed skill directory found.');
+// Leaving the hook wired after removing the skill would fail on every prompt.
+const hook = removePersistence();
+if (hook.error) {
+  console.log(`⚠️  Persistence hook: ${hook.error}`);
+  console.log('   Remove it by hand, or fix the file and run distill-disable-persistence.');
+}
+
+if (tally.removed === 0 && tally.foreign === 0 && !hook.unwired && !hook.fileRemoved) {
+  console.log('ℹ️  Nothing to remove: no installed skill directory and no wired hook found.');
 }
 if (tally.foreign > 0) {
   console.log(`ℹ️  ${tally.foreign} directory(ies) left alone because this package did not install them.`);

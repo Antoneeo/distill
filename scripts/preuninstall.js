@@ -8,5 +8,10 @@
 // the same ownership-checked implementation in lib.js.
 
 const { CLIENTS, removeSkill } = require('./lib');
+const { removePersistence } = require('./persistence');
 
 CLIENTS.forEach((client) => removeSkill(client));
+
+// Also unwire the hook: leaving it wired after the package is gone would inject
+// on every prompt with no way to turn it off via the (now absent) bins.
+removePersistence();

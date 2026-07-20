@@ -23,6 +23,25 @@ const PACKAGE_NAME = '@antoneeo/distill-skill';
 // untouched. Leading dot so skill loaders ignore it alongside SKILL.md.
 const MARKER_NAME = '.installed-by.json';
 
+// Persistence hook (Claude Code only). The script is COPIED into the user's
+// hooks dir rather than referenced inside global node_modules: a hook command
+// pointing at a path `npm uninstall -g` deletes would fail on every prompt.
+const HOOK_SOURCE = path.join(PACKAGE_ROOT, 'hooks', 'distill-persist.js');
+const HOOK_FILENAME = 'distill-persist.js';
+
+function claudeHome() {
+  return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
+}
+function hooksDir() {
+  return path.join(claudeHome(), 'hooks');
+}
+function installedHookPath() {
+  return path.join(hooksDir(), HOOK_FILENAME);
+}
+function settingsPath() {
+  return path.join(claudeHome(), 'settings.json');
+}
+
 // One entry per supported AI client. `home` may be overridden by an env var
 // (Claude Desktop / portable installs); presence of the home dir counts as
 // detection even when the CLI is not on PATH.
@@ -191,6 +210,12 @@ module.exports = {
   SKILL_NAME,
   SKILL_SOURCE,
   MARKER_NAME,
+  HOOK_SOURCE,
+  HOOK_FILENAME,
+  claudeHome,
+  hooksDir,
+  installedHookPath,
+  settingsPath,
   CLIENTS,
   commandExists,
   clientDetected,

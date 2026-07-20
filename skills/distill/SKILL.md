@@ -44,6 +44,8 @@ Action (field 2) precedes payload (field 3) because it is the selection criterio
 
 **Proportionality.** Trivial texts (confirmations, one-line answers): no contract, only the north star. Substantial chat replies: implicit contract in your thinking, zero visible cost. Documents: explicit contract before writing.
 
+**Persistence.** The discipline does not lapse mid-session. It governs every text you produce from the moment it loads — at the proportion above, not only the first document after loading. The failure mode is drift: the contract gets compiled for the first text, then quietly skipped for the next three while the register slides back. If you are unsure whether it still applies, it does.
+
 ## 3. The level — delimit it with three questions, never a label
 
 A label ("L2") is a category; what you need is a boundary. Declare:
@@ -72,6 +74,8 @@ On every block, in order:
 
 1. **Level test**: does it answer the declared question? No → relocate it to the section/document of its altitude; at most a one-line reference remains in its place. Relocate, don't delete: off-level content is often true and useful — elsewhere.
 2. **Deletion test** (at the declared altitude): if I delete this, the reader fails the action → **BLOCKING**, keep it up front; decides worse → **DECISIONAL**, keep it if the budget holds; loses only a lookup → **CONVENIENCE**, one line or a link; nothing changes → **SUPERFLUOUS**, delete.
+
+   **Cost of misreading.** The deletion test decides what to keep, never how tersely to state it. Where misreading a block is expensive or irreversible — destructive commands, security consequences, order-dependent steps, anything the reader cannot undo — write it in full sentences, name the consequence, and keep the redundancy that makes the wrong reading hard to reach. Budget yields here, not the reverse: compression that saves tokens by leaving a catastrophic step ambiguous minimizes attention spent at the cost of the correct action, which is the north star inverted. If this busts the form budget, update the contract — do not shrink the warning.
 
 On the whole text:
 

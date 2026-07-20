@@ -313,6 +313,268 @@ test('the uninstall bin removes owned dirs and reports a foreign one', () => {
   assert.match(out, /left alone because this package did not install them/);
 });
 
+// --- persistence hook: settings.json merge ---------------------------------
+// These run against FIXTURE settings files in a temp dir. The real
+// ~/.claude/settings.json is never read or written by the battery.
+const S = require('./settings');
+
+function writeFixture(dir, obj) {
+  const p = path.join(dir, 'settings.json');
+  fs.writeFileSync(p, typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2), 'utf8');
+  return p;
+}
+
+const CAVEMAN_CMD = { type: 'command', command: 'node "C:/Users/x/.claude/hooks/caveman-mode-tracker.js"' };
+const CAVEMAN_ENTRY = { hooks: [CAVEMAN_CMD] };
+
+// The battery's isolation is load-bearing: several tests spawn bins that resolve
+// their own paths. Assert the redirection actually works instead of trusting it,
+// and refuse to run if a settings path ever resolves inside the real home.
+// The real config this battery must never touch. Resolved once, with no override
+// in effect, so it is the genuine ~/.claude/settings.json.
+const REAL_CLAUDE_DIR = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
+
+test('battery isolation: path helpers honour CLAUDE_CONFIG_DIR', () => {
+  // claudeHome() reads the env at CALL time, so set it around the call rather than
+  // through freshLib (which restores the env before it returns).
+  const lib = require('./lib');
+  const fake = path.join(os.tmpdir(), 'distill-isolation-probe');
+  const saved = process.env.CLAUDE_CONFIG_DIR;
+  try {
+    process.env.CLAUDE_CONFIG_DIR = fake;
+    assert.strictEqual(lib.settingsPath(), path.join(fake, 'settings.json'),
+      'settingsPath must follow CLAUDE_CONFIG_DIR, or the battery writes the real config');
+    assert.strictEqual(lib.installedHookPath(), path.join(fake, 'hooks', 'distill-persist.js'));
+    delete process.env.CLAUDE_CONFIG_DIR;
+    assert.ok(lib.settingsPath().startsWith(os.homedir()),
+      'without the override it resolves under the home dir (sanity check on the probe)');
+  } finally {
+    if (saved === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = saved;
+  }
+});
+
+// Guard: a settings fixture must never BE the real config. On Windows os.tmpdir()
+// sits under the home dir, so "outside home" is the wrong invariant -- what matters
+// is that the path is not inside the real Claude config dir.
+function assertNotRealConfig(p) {
+  const resolved = path.resolve(p);
+  assert.ok(!resolved.toLowerCase().startsWith(path.resolve(REAL_CLAUDE_DIR).toLowerCase()),
+    `refusing to run a settings test against the real Claude config: ${resolved}`);
+}
+
+test('T7 unwire preserves a CO-LOCATED third-party hook in the same entry', () => {
+  // Claude Code groups several commands under one entry. Removing the whole entry
+  // because it contains one of ours would delete a stranger's hook.
+  const dir = tempHome('settings-colocated');
+  const shared = { matcher: '', hooks: [CAVEMAN_CMD, { type: 'command', command: 'node "/h/distill-persist.js"' }] };
+  const p = writeFixture(dir, { hooks: { UserPromptSubmit: [shared] } });
+  assertNotRealConfig(p);
+
+  const { settings } = S.readSettings(p);
+  assert.strictEqual(S.unwire(settings), true);
+  S.writeSettings(p, settings, { backup: false });
+
+  const after = JSON.parse(fs.readFileSync(p, 'utf8'));
+  assert.strictEqual(after.hooks.UserPromptSubmit.length, 1, 'entry survives');
+  assert.deepStrictEqual(after.hooks.UserPromptSubmit[0].hooks, [CAVEMAN_CMD],
+    'caveman command preserved, ours removed');
+  assert.strictEqual(after.hooks.UserPromptSubmit[0].matcher, '', 'entry fields preserved');
+});
+
+test('HOOK_PATTERN does not claim an unrelated path containing the substring', () => {
+  assert.strictEqual(S.isOurCommand({ command: 'node /opt/distill-persistence-analyzer/run.js' }), false);
+  assert.strictEqual(S.isOurCommand({ command: 'node "/h/hooks/distill-persist.js"' }), true);
+  assert.strictEqual(S.isOurCommand({ command: 'node /h/hooks/distill-persist.js' }), true);
+});
+
+test('a non-object hooks key or non-array event is refused, not overwritten', () => {
+  const dir = tempHome('settings-shape');
+  for (const bad of [{ hooks: [] }, { hooks: 'x' }, { hooks: { UserPromptSubmit: { a: 1 } } }]) {
+    const p = path.join(dir, `bad-${Math.abs(JSON.stringify(bad).length)}.json`);
+    const raw = JSON.stringify(bad, null, 2);
+    fs.writeFileSync(p, raw, 'utf8');
+    assert.throws(() => S.readSettings(p), /Refusing to modify it/, `should refuse: ${raw}`);
+    assert.strictEqual(fs.readFileSync(p, 'utf8'), raw, 'left byte-identical');
+  }
+});
+
+test('a concurrent modification between read and write is refused', () => {
+  const dir = tempHome('settings-race');
+  const p = writeFixture(dir, { model: 'opus' });
+  const { settings, stamp } = S.readSettings(p);
+  S.wire(settings, 'node "/h/distill-persist.js"');
+  // Another writer lands first.
+  fs.writeFileSync(p, JSON.stringify({ model: 'opus', statusLine: 'x' }, null, 2), 'utf8');
+  assert.throws(() => S.writeSettings(p, settings, { expectStamp: stamp }), /changed on disk/);
+  const after = JSON.parse(fs.readFileSync(p, 'utf8'));
+  assert.strictEqual(after.statusLine, 'x', "the other writer's key survives");
+});
+
+test('a failed write leaves no temp file and does not truncate the target', () => {
+  const dir = tempHome('settings-atomic');
+  const p = writeFixture(dir, { model: 'opus' });
+  const original = fs.readFileSync(p, 'utf8');
+  // Circular structure makes JSON.stringify throw inside writeSettings.
+  const circular = { model: 'opus' };
+  circular.self = circular;
+  assert.throws(() => S.writeSettings(p, circular, { backup: false }));
+  assert.strictEqual(fs.readFileSync(p, 'utf8'), original, 'target intact');
+  assert.strictEqual(fs.readdirSync(dir).filter((f) => f.endsWith('.distill-tmp')).length, 0,
+    'no orphan temp file');
+});
+
+test('removePersistence unwires the entry AND deletes the hook script', () => {
+  const home = tempHome('persist-remove');
+  const sp = path.join(home, 'settings.json');
+  assertNotRealConfig(sp);
+  fs.writeFileSync(sp, JSON.stringify({ hooks: { UserPromptSubmit: [CAVEMAN_ENTRY] } }, null, 2), 'utf8');
+
+  const out = execFileSync(process.execPath, ['-e', `
+    process.env.CLAUDE_CONFIG_DIR = ${JSON.stringify(home)};
+    const { removePersistence } = require(${JSON.stringify(path.join(__dirname, 'persistence.js'))});
+    const fs = require('fs'), path = require('path');
+    const hp = path.join(${JSON.stringify(home)}, 'hooks', 'distill-persist.js');
+    fs.mkdirSync(path.dirname(hp), { recursive: true });
+    fs.writeFileSync(hp, '// stub', 'utf8');
+    const s = JSON.parse(fs.readFileSync(${JSON.stringify(sp)}, 'utf8'));
+    s.hooks.UserPromptSubmit.push({ hooks: [{ type: 'command', command: 'node "' + hp.split('\\\\').join('/') + '"' }] });
+    fs.writeFileSync(${JSON.stringify(sp)}, JSON.stringify(s, null, 2), 'utf8');
+    const r = removePersistence(() => {});
+    process.stdout.write(JSON.stringify({ r, fileGone: !fs.existsSync(hp) }));
+  `], { encoding: 'utf8' });
+
+  const { r, fileGone } = JSON.parse(out);
+  assert.strictEqual(r.unwired, true, 'entry unwired');
+  assert.strictEqual(r.fileRemoved, true, 'hook script deleted');
+  assert.strictEqual(fileGone, true);
+  const after = JSON.parse(fs.readFileSync(sp, 'utf8'));
+  assert.deepStrictEqual(after.hooks.UserPromptSubmit, [CAVEMAN_ENTRY], 'caveman entry kept');
+});
+
+test('the uninstall bin unwires a hook even with no skills installed', () => {
+  const home = tempHome('uninstall-unwires');
+  const claude = path.join(home, '.claude');
+  fs.mkdirSync(path.join(claude, 'hooks'), { recursive: true });
+  const hp = path.join(claude, 'hooks', 'distill-persist.js');
+  fs.writeFileSync(hp, '// stub', 'utf8');
+  const sp = path.join(claude, 'settings.json');
+  assertNotRealConfig(sp);
+  fs.writeFileSync(sp, JSON.stringify({
+    hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: `node "${hp.split('\\').join('/')}"` }] }] },
+  }, null, 2), 'utf8');
+
+  runScript(UNINSTALL, home);
+  const after = JSON.parse(fs.readFileSync(sp, 'utf8'));
+  assert.strictEqual(after.hooks, undefined, 'our entry removed and empty scaffolding pruned');
+  assert.strictEqual(fs.existsSync(hp), false, 'hook script removed');
+});
+
+test('package.json and gemini-extension.json versions stay in sync', () => {
+  const root = path.join(__dirname, '..');
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const gem = JSON.parse(fs.readFileSync(path.join(root, 'gemini-extension.json'), 'utf8'));
+  assert.strictEqual(gem.version, pkg.version, 'gemini-extension.json version drifted');
+  const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+  assert.ok(readme.includes(`Version ${pkg.version}`), `README does not state Version ${pkg.version}`);
+});
+
+test('T7 wiring appends and leaves another tool\'s hook byte-identical', () => {
+  const dir = tempHome('settings-merge');
+  const p = writeFixture(dir, { hooks: { UserPromptSubmit: [CAVEMAN_ENTRY] }, model: 'opus' });
+  assertNotRealConfig(p);
+
+  const { settings } = S.readSettings(p);
+  assert.strictEqual(S.wire(settings, 'node "/h/distill-persist.js"'), true);
+  S.writeSettings(p, settings);
+
+  const after = JSON.parse(fs.readFileSync(p, 'utf8'));
+  assert.strictEqual(after.hooks.UserPromptSubmit.length, 2, 'appended, not replaced');
+  assert.deepStrictEqual(after.hooks.UserPromptSubmit[0], CAVEMAN_ENTRY, 'caveman entry untouched');
+  assert.strictEqual(after.model, 'opus', 'unrelated keys preserved');
+  assert.ok(S.isWired(after));
+});
+
+test('T9 wiring is idempotent', () => {
+  const dir = tempHome('settings-idem');
+  const p = writeFixture(dir, { hooks: { UserPromptSubmit: [CAVEMAN_ENTRY] } });
+  const { settings } = S.readSettings(p);
+  S.wire(settings, 'node "/h/distill-persist.js"');
+  S.writeSettings(p, settings);
+
+  const { settings: second } = S.readSettings(p);
+  assert.strictEqual(S.wire(second, 'node "/h/distill-persist.js"'), false, 'second wire is a no-op');
+  assert.strictEqual(second.hooks.UserPromptSubmit.length, 2, 'no duplicate entry');
+});
+
+test('a backup is written before any modification', () => {
+  const dir = tempHome('settings-backup');
+  const p = writeFixture(dir, { hooks: {}, model: 'opus' });
+  const original = fs.readFileSync(p, 'utf8');
+
+  const { settings } = S.readSettings(p);
+  S.wire(settings, 'node "/h/distill-persist.js"');
+  S.writeSettings(p, settings);
+
+  const backups = fs.readdirSync(dir).filter((f) => f.includes('distill-backup'));
+  assert.strictEqual(backups.length, 1, 'exactly one backup');
+  assert.strictEqual(fs.readFileSync(path.join(dir, backups[0]), 'utf8'), original,
+    'backup holds the pre-modification content');
+});
+
+test('T6 malformed settings are refused, not overwritten', () => {
+  const dir = tempHome('settings-broken');
+  const broken = '{ "hooks": { oops not json';
+  const p = writeFixture(dir, broken);
+
+  assert.throws(() => S.readSettings(p), /not valid JSON/);
+  assert.strictEqual(fs.readFileSync(p, 'utf8'), broken, 'file left byte-identical');
+
+  // A JSON array is valid JSON but the wrong shape -- also refused.
+  const p2 = path.join(dir, 'arr.json');
+  fs.writeFileSync(p2, '[]', 'utf8');
+  assert.throws(() => S.readSettings(p2), /does not contain a JSON object/);
+});
+
+test('unwire removes only our entry and prunes what we emptied', () => {
+  const dir = tempHome('settings-unwire');
+  const p = writeFixture(dir, { hooks: { UserPromptSubmit: [CAVEMAN_ENTRY] } });
+  const { settings } = S.readSettings(p);
+  S.wire(settings, 'node "/h/distill-persist.js"');
+  S.writeSettings(p, settings);
+
+  const { settings: loaded } = S.readSettings(p);
+  assert.strictEqual(S.unwire(loaded), true);
+  S.writeSettings(p, loaded);
+
+  const after = JSON.parse(fs.readFileSync(p, 'utf8'));
+  assert.strictEqual(after.hooks.UserPromptSubmit.length, 1, 'ours gone');
+  assert.deepStrictEqual(after.hooks.UserPromptSubmit[0], CAVEMAN_ENTRY, 'theirs kept');
+  assert.strictEqual(S.unwire(after), false, 'second unwire is a no-op');
+});
+
+test('unwire on a file that only ever had our entry leaves no empty scaffolding', () => {
+  const dir = tempHome('settings-prune');
+  const p = writeFixture(dir, { model: 'opus' });
+  const { settings } = S.readSettings(p);
+  S.wire(settings, 'node "/h/distill-persist.js"');
+  S.unwire(settings);
+  assert.strictEqual(settings.hooks, undefined, 'hooks key removed when we emptied it');
+  assert.strictEqual(settings.model, 'opus', 'unrelated keys survive');
+});
+
+test('the hook emits one line of additionalContext and exits 0', () => {
+  const out = execFileSync(process.execPath, [path.join(__dirname, '..', 'hooks', 'distill-persist.js')], {
+    encoding: 'utf8',
+  });
+  const parsed = JSON.parse(out);
+  assert.strictEqual(parsed.hookSpecificOutput.hookEventName, 'UserPromptSubmit');
+  const ctx = parsed.hookSpecificOutput.additionalContext;
+  assert.match(ctx, /distill active/);
+  assert.strictEqual(ctx.split('\n').length, 1, 'payload must stay one line');
+  assert.ok(ctx.length < 200, `payload must stay small, got ${ctx.length} chars`);
+});
+
 test('T2 uninstall leaves an unowned skill dir untouched', () => {
   const home = tempHome('preserve');
   const target = path.join(home, '.claude', 'skills', 'distill');
