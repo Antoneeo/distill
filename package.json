@@ -1,0 +1,42 @@
+{
+  "name": "@antoneeo/distill-skill",
+  "version": "0.1.0",
+  "description": "Contract-first writing discipline for Claude Code, Gemini CLI, Google Antigravity and Codex: compile the text contract before the prose, close with the loss/noise gate.",
+  "keywords": [
+    "claude-code",
+    "claude-skill",
+    "gemini-cli",
+    "skill",
+    "writing",
+    "documentation",
+    "technical-writing",
+    "ai-agent"
+  ],
+  "author": "Antonio Pinto (https://github.com/Antoneeo)",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "distill-install-skill": "scripts/postinstall.js",
+    "distill-uninstall-skill": "scripts/uninstall.js"
+  },
+  "engines": {
+    "node": ">=14"
+  },
+  "scripts": {
+    "postinstall": "node scripts/postinstall.js",
+    "preuninstall": "node scripts/preuninstall.js",
+    "test": "node scripts/test_clients.js"
+  },
+  "files": [
+    "skills/distill/SKILL.md",
+    "gemini-extension.json",
+    "README.md",
+    "CHANGELOG.md",
+    "scripts/lib.js",
+    "scripts/postinstall.js",
+    "scripts/preuninstall.js",
+    "scripts/uninstall.js"
+  ]
+}
