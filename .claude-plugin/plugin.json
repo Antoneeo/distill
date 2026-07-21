@@ -1,22 +1,9 @@
 {
   "name": "distill",
+  "version": "0.4.1",
   "description": "Contract-first writing discipline. Compile the text contract before the prose, then close with the loss/noise gate.",
   "author": {
     "name": "Antonio Pinto",
     "url": "https://github.com/Antoneeo"
-  },
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/distill-persist.js\"",
-            "timeout": 5,
-            "statusMessage": "Keeping distill active..."
-          }
-        ]
-      }
-    ]
   }
 }
