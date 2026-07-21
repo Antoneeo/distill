@@ -2,6 +2,48 @@
 
 All notable changes to `@antoneeo/distill-skill`.
 
+## [0.4.1] — 2026-07-21
+
+**0.4.0 shipped a hooks block that produced no hooks.** Both its hooks were dead on the machine
+that installed it — including the persistence hook that worked in 0.3.0. If you installed 0.4.0,
+this release is the fix.
+
+### Hooks move to `hooks/hooks.json`
+
+Every plugin in Anthropic's own marketplace — `ralph-loop`, `hookify`, `security-guidance`, and
+the two output-style plugins — declares its hooks in `hooks/hooks.json` at the plugin root, and
+none of them puts a `hooks` key in `plugin.json`. The client loads that file automatically. Two
+of those plugins ship a `Stop` hook from it.
+
+`plugin.json` is now metadata only. `hooks/hooks.json` carries both `UserPromptSubmit` and
+`Stop`.
+
+Honesty about the diagnosis: the inline `hooks` key in `plugin.json` is **not** invalid — the
+client's own schema types it as a supported union, and other plugins use it successfully. So the
+root cause of 0.4.0's failure is not established, only its fix. What is verified is the layout
+this release adopts.
+
+### Manifest defects found by actually running the validator
+
+- `marketplace.json` had **failed `claude plugin validate` since the day it was written**: root
+  `$schema` and `description` are unrecognized keys. The description moves to
+  `metadata.description`. Nobody had ever run the validator.
+- `plugin.json` deliberately declares **no `version`**. With it set, the version string becomes
+  the update cache key and pushing commits no longer reaches users until it is bumped; without
+  it, the git SHA is used and every commit propagates. Same choice `caveman` and `hookify` make.
+  A test now guards both manifests.
+
+### `stop_hook_active` was read backwards
+
+It means *"some `Stop` hook is configured to block"* — a fact about configuration, not "this hook
+already blocked this response". The gate used to return early on it, which in phase 1 would have
+silently starved data collection whenever any blocking Stop hook existed on the machine. It is
+now recorded in the log line instead. The "Claude Code caps consecutive blocks at 8" cited in the
+old comment appears in no documentation.
+
+`last_assistant_message`, by contrast, is confirmed correct and is the recommended route —
+reading the transcript file instead is the older, lossier one.
+
 ## [0.4.0] — 2026-07-20
 
 A `Stop` hook that inspects what was actually written. **It never blocks** — this release

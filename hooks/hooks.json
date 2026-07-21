@@ -1,0 +1,29 @@
+{
+  "description": "distill plugin hooks: per-turn persistence reminder, and the observational §6 gate.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/distill-persist.js\"",
+            "timeout": 5,
+            "statusMessage": "Keeping distill active..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/distill-gate.js\"",
+            "timeout": 5,
+            "statusMessage": "Running the distill gate..."
+          }
+        ]
+      }
+    ]
+  }
+}

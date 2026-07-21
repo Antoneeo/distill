@@ -1,10 +1,11 @@
 {
-  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "distill",
-  "description": "Contract-first writing discipline for agents: decide what to write before writing, then verify against a loss/noise gate.",
   "owner": {
     "name": "Antonio Pinto",
     "url": "https://github.com/Antoneeo"
+  },
+  "metadata": {
+    "description": "Contract-first writing discipline for agents: decide what to write before writing, then verify against a loss/noise gate."
   },
   "plugins": [
     {

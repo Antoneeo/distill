@@ -597,15 +597,23 @@ test('gate is OFF by default: no env var, no file, no read of the message', () =
   }
 });
 
-test('gate honours stop_hook_active and writes nothing', () => {
+test('gate records stop_hook_active instead of short-circuiting on it', () => {
+  // `stop_hook_active` means "some Stop hook is configured to block", not "this hook already
+  // blocked". Phase 1 never blocks, so it must keep logging regardless -- otherwise any
+  // unrelated blocking Stop hook on the machine silently starves the data collection.
   const home = tempHome('gate-active');
-  execFileSync(process.execPath, [GATE], {
+  const out = execFileSync(process.execPath, [GATE], {
     input: JSON.stringify({ stop_hook_active: true, last_assistant_message: 'Certamente! test' }),
     encoding: 'utf8',
     env: { ...process.env, CLAUDE_CONFIG_DIR: home, DISTILL_GATE_LOG: '1' },
   });
-  assert.strictEqual(fs.existsSync(path.join(home, 'distill', 'gate-log.jsonl')), false,
-    'the loop guard must short-circuit before any write');
+  assert.strictEqual(out, '', 'still no stdout: phase 1 never blocks');
+
+  const logPath = path.join(home, 'distill', 'gate-log.jsonl');
+  assert.ok(fs.existsSync(logPath), 'a flagged message must be logged even when the flag is set');
+  const entry = JSON.parse(fs.readFileSync(logPath, 'utf8').trim().split('\n').pop());
+  assert.strictEqual(entry.stop_hook_active, true, 'the flag is recorded for phase 2 to reason about');
+  assert.strictEqual(entry.would_block, true, 'and it is still only an observation');
 });
 
 test('gate survives malformed stdin', () => {
@@ -619,20 +627,39 @@ test('gate survives malformed stdin', () => {
 });
 
 // --- Claude Code plugin channel --------------------------------------------
-test('plugin manifest declares the hook against a path that exists', () => {
+test('hooks live in hooks/hooks.json, the channel every first-party plugin uses', () => {
+  // Anthropic's own ralph-loop, hookify, security-guidance and the two output-style plugins all
+  // declare hooks in hooks/hooks.json and none of them puts a `hooks` key in plugin.json.
+  // The client loads that file automatically; see reference/GUIDE_claude_code_hooks.md.
   const root = path.join(__dirname, '..');
   const manifest = JSON.parse(fs.readFileSync(path.join(root, '.claude-plugin', 'plugin.json'), 'utf8'));
   assert.strictEqual(manifest.name, 'distill');
+  assert.ok(!('hooks' in manifest),
+    'plugin.json must stay metadata-only: the two channels MERGE, so declaring here too registers twice');
 
-  const entries = manifest.hooks && manifest.hooks.UserPromptSubmit;
-  assert.ok(Array.isArray(entries) && entries.length > 0, 'must declare a UserPromptSubmit hook');
-  const cmd = entries[0].hooks[0].command;
+  const cfg = JSON.parse(fs.readFileSync(path.join(root, 'hooks', 'hooks.json'), 'utf8'));
+  assert.ok(cfg.hooks, 'the file needs the top-level `hooks` wrapper key or it parses to undefined');
 
-  assert.match(cmd, /\$\{CLAUDE_PLUGIN_ROOT\}/,
-    'must resolve through ${CLAUDE_PLUGIN_ROOT}, not an absolute path');
-  // The referenced script must actually exist at that location in the repo.
-  const rel = cmd.match(/\$\{CLAUDE_PLUGIN_ROOT\}\/([^"]+)/)[1];
-  assert.ok(fs.existsSync(path.join(root, rel)), `manifest points at a missing file: ${rel}`);
+  for (const event of ['UserPromptSubmit', 'Stop']) {
+    const entries = cfg.hooks[event];
+    assert.ok(Array.isArray(entries) && entries.length > 0, `must declare a ${event} hook`);
+    const cmd = entries[0].hooks[0].command;
+    assert.match(cmd, /\$\{CLAUDE_PLUGIN_ROOT\}/,
+      `${event} must resolve through \${CLAUDE_PLUGIN_ROOT}, not an absolute path`);
+    // The referenced script must actually exist at that location in the repo.
+    const rel = cmd.match(/\$\{CLAUDE_PLUGIN_ROOT\}\/([^"]+)/)[1];
+    assert.ok(fs.existsSync(path.join(root, rel)), `${event} points at a missing file: ${rel}`);
+  }
+});
+
+test('marketplace manifest carries no key the validator rejects', () => {
+  // `claude plugin validate` fails on `$schema` and a root `description`; the description
+  // belongs under `metadata`. This manifest failed validation from the day it was written.
+  const root = path.join(__dirname, '..');
+  const mkt = JSON.parse(fs.readFileSync(path.join(root, '.claude-plugin', 'marketplace.json'), 'utf8'));
+  assert.ok(!('$schema' in mkt), '`$schema` is an unrecognized key at marketplace root');
+  assert.ok(!('description' in mkt), 'root `description` is rejected; use metadata.description');
+  assert.ok(mkt.metadata && typeof mkt.metadata.description === 'string');
 });
 
 test('marketplace manifest parses and points at this repo', () => {
