@@ -470,6 +470,154 @@ test('the uninstall bin unwires a hook even with no skills installed', () => {
   assert.strictEqual(fs.existsSync(hp), false, 'hook script removed');
 });
 
+// --- §6 checks + Stop-hook gate (phase 1, observational) --------------------
+const CHECKS = require('../hooks/checks');
+const GATE = path.join(__dirname, '..', 'hooks', 'distill-gate.js');
+
+function ids(text) {
+  return CHECKS.runChecks(text).findings.map((f) => f.id).sort();
+}
+
+test('each §6 check fires on its positive fixture', () => {
+  // Single-purpose fixture: "Ecco cosa ho trovato" would legitimately also trip status_line.
+  assert.deepStrictEqual(ids('Certamente! Il progetto è uno scheletro mai collegato.'), ['ceremonial_opener']);
+  assert.deepStrictEqual(ids('Ho letto la skill e l\'ho applicata. Il progetto è uno scheletro.'),
+    ['compliance_announcement']);
+  // Recall matters more than precision here: the corpus shape is "Ho letto TUTTO IL
+  // PROGETTO" / "Ho esaminato", which an earlier draft requiring "Ho letto la|e" missed.
+  assert.deepStrictEqual(ids('Ho letto tutto il progetto — sono solo 3 file.'), ['compliance_announcement']);
+  assert.deepStrictEqual(ids('Ho esaminato il progetto e conta 30 righe.'), ['compliance_announcement']);
+  assert.deepStrictEqual(ids('I have reviewed the project. It is a skeleton.'), ['compliance_announcement']);
+  // status_line sits mid-line, so a start-anchored pattern cannot catch it.
+  assert.deepStrictEqual(ids('Il progetto è minuscolo. Ecco il quadro completo.'), ['status_line']);
+  assert.deepStrictEqual(ids('Procedo ora a elencare i difetti trovati nel modulo.'), ['meta_narration']);
+  assert.deepStrictEqual(ids('Il fix potrebbe forse risolvere il problema in alcuni casi.'), ['hedging_chain']);
+  assert.deepStrictEqual(ids('Il flusso e semplice: initApp chiama fetchData poi renderData scrive.\ninitApp -> fetchData -> renderData'),
+    ['arrow_chain']);
+  assert.deepStrictEqual(ids('Il sistema e robusto e ben progettato.'), ['unsupported_adjective']);
+});
+
+test('repeated_sentence fires only on a long exact repeat', () => {
+  const long = 'La misura mostra che la perdita bloccante e simmetrica tra i due bracci.';
+  assert.deepStrictEqual(ids(`${long} Altro testo qui in mezzo. ${long}`), ['repeated_sentence']);
+  // Short repeats are legitimate and must not fire.
+  assert.deepStrictEqual(ids('Va bene. Qualcosa in mezzo. Va bene.'), []);
+});
+
+test('clean prose produces no findings', () => {
+  assert.deepStrictEqual(
+    ids('Il blocco fallisce perche unwire rimuove l\'intera voce invece del singolo comando. Il fix filtra a livello di hook.'),
+    [],
+  );
+});
+
+test('code blocks are immune — the false positives I expect', () => {
+  // An arrow chain inside a fenced block is a diagram, not mutilating compression.
+  assert.deepStrictEqual(ids('Il flusso e descritto sotto.\n\n```\nA -> B -> C\n```\n'), []);
+  // ...and inline code.
+  assert.deepStrictEqual(ids('Vedi `initApp -> fetchData -> renderData` nel sorgente.'), []);
+  // A quoted line (blockquote) is source material, not our prose.
+  assert.deepStrictEqual(ids('> Certamente! Ecco la risposta.\n\nQuesto e cio che ha risposto.'), []);
+  // A markdown table row must not trip the arrow chain.
+  assert.deepStrictEqual(ids('| da | a |\n| A -> B -> C | x |'), []);
+});
+
+test('gate never blocks: no block path exists in the source', () => {
+  // Strip comments first: the file *documents* what it refuses to do, and the assertion
+  // is about executable code, not about prose describing it.
+  const src = fs.readFileSync(GATE, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/^\s*\/\/.*$/gm, ' ');
+  assert.ok(!/decision["']?\s*:\s*["']block/.test(src), 'phase 1 must contain no block decision');
+  assert.ok(!/process\.exit\(\s*[1-9]/.test(src), 'phase 1 must never exit non-zero');
+  // And prove it behaviourally, not only by inspection.
+  const home = tempHome('gate-exit');
+  const r = execFileSync(process.execPath, [GATE], {
+    input: JSON.stringify({ last_assistant_message: 'Certamente! ' + 'parola '.repeat(500) }),
+    encoding: 'utf8', env: { ...process.env, CLAUDE_CONFIG_DIR: home },
+  });
+  assert.strictEqual(r, '', 'even a maximally-flagged message produces no stdout');
+});
+
+test('gate logs findings without ever recording the message body', () => {
+  const home = tempHome('gate-log');
+  assertNotRealConfig(path.join(home, 'settings.json'));
+  const secret = 'CONFIDENZIALE-CANARINO-9973 dettagli privati della conversazione';
+  const payload = JSON.stringify({
+    hook_event_name: 'Stop',
+    prompt_id: 'pid-1',
+    stop_reason: 'end_turn',
+    stop_hook_active: false,
+    last_assistant_message: `Certamente! ${secret}`,
+  });
+
+  const res = execFileSync(process.execPath, [GATE], {
+    input: payload,
+    encoding: 'utf8',
+    env: { ...process.env, CLAUDE_CONFIG_DIR: home, DISTILL_GATE_LOG: '1' },
+  });
+  assert.strictEqual(res, '', 'a phase-1 gate must emit nothing on stdout');
+
+  const logPath = path.join(home, 'distill', 'gate-log.jsonl');
+  assert.ok(fs.existsSync(logPath), 'log line appended');
+  const raw = fs.readFileSync(logPath, 'utf8');
+  assert.ok(!raw.includes('CONFIDENZIALE-CANARINO-9973'),
+    'T14: the message body must never reach the log');
+  const entry = JSON.parse(raw.trim());
+  assert.deepStrictEqual(entry.findings.map((f) => f.id), ['ceremonial_opener']);
+  assert.strictEqual(entry.would_block, true);
+  assert.ok(entry.words > 0);
+  for (const f of entry.findings) {
+    assert.ok(f.excerpt.length <= CHECKS.EXCERPT_MAX, 'excerpt stays capped');
+  }
+});
+
+test('gate is OFF by default: no env var, no file, no read of the message', () => {
+  const home = tempHome('gate-optout');
+  const env = { ...process.env, CLAUDE_CONFIG_DIR: home };
+  delete env.DISTILL_GATE_LOG;
+  const out = execFileSync(process.execPath, [GATE], {
+    input: JSON.stringify({ last_assistant_message: 'Certamente! Ecco la risposta.' }),
+    encoding: 'utf8',
+    env,
+  });
+  assert.strictEqual(out, '', 'silent');
+  assert.strictEqual(fs.existsSync(path.join(home, 'distill')), false,
+    'without opt-in the hook must not even create its directory');
+
+  // An explicit value other than "1" is also off — no accidental truthiness.
+  for (const v of ['0', 'true', 'yes', '']) {
+    execFileSync(process.execPath, [GATE], {
+      input: JSON.stringify({ last_assistant_message: 'Certamente! test' }),
+      encoding: 'utf8',
+      env: { ...process.env, CLAUDE_CONFIG_DIR: home, DISTILL_GATE_LOG: v },
+    });
+    assert.strictEqual(fs.existsSync(path.join(home, 'distill')), false,
+      `DISTILL_GATE_LOG=${JSON.stringify(v)} must not enable logging`);
+  }
+});
+
+test('gate honours stop_hook_active and writes nothing', () => {
+  const home = tempHome('gate-active');
+  execFileSync(process.execPath, [GATE], {
+    input: JSON.stringify({ stop_hook_active: true, last_assistant_message: 'Certamente! test' }),
+    encoding: 'utf8',
+    env: { ...process.env, CLAUDE_CONFIG_DIR: home, DISTILL_GATE_LOG: '1' },
+  });
+  assert.strictEqual(fs.existsSync(path.join(home, 'distill', 'gate-log.jsonl')), false,
+    'the loop guard must short-circuit before any write');
+});
+
+test('gate survives malformed stdin', () => {
+  const home = tempHome('gate-junk');
+  for (const junk of ['', 'not json', '[]', 'null', '{"last_assistant_message":42}']) {
+    const out = execFileSync(process.execPath, [GATE], {
+      input: junk, encoding: 'utf8', env: { ...process.env, CLAUDE_CONFIG_DIR: home },
+    });
+    assert.strictEqual(out, '', `must stay silent on: ${junk}`);
+  }
+});
+
 // --- Claude Code plugin channel --------------------------------------------
 test('plugin manifest declares the hook against a path that exists', () => {
   const root = path.join(__dirname, '..');
@@ -615,9 +763,15 @@ test('the hook emits one line of additionalContext and exits 0', () => {
   const parsed = JSON.parse(out);
   assert.strictEqual(parsed.hookSpecificOutput.hookEventName, 'UserPromptSubmit');
   const ctx = parsed.hookSpecificOutput.additionalContext;
-  assert.match(ctx, /distill active/);
+  assert.match(ctx, /^distill/, 'must identify its source among other tools\' hooks');
   assert.strictEqual(ctx.split('\n').length, 1, 'payload must stay one line');
-  assert.ok(ctx.length < 200, `payload must stay small, got ${ctx.length} chars`);
+  assert.ok(ctx.length < 260, `payload must stay small, got ${ctx.length} chars`);
+  // The payload must stand alone: the skill body is not loaded on most turns, so naming
+  // its internal machinery would instruct the agent to run a procedure it has not read.
+  for (const jargon of ['contract', 'the gate', 'payload', 'distillate']) {
+    assert.ok(!ctx.toLowerCase().includes(jargon),
+      `payload must not rely on skill-internal term "${jargon}"`);
+  }
 });
 
 test('T2 uninstall leaves an unowned skill dir untouched', () => {

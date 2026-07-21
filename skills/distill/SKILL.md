@@ -5,7 +5,7 @@ description: "Contract-first writing discipline that distills text to all signal
 
 # distill — text is written contract-first
 
-**For whom**: the agent about to produce text. **To do what**: write text that passes the gate (§5), or audit existing text (§7). **Answers**: "how do I decide what to write, and how do I verify the result". **Does not answer**: grammar and surface style (below); communication theory (above — lives in the text_skill project notes).
+**For whom**: the agent about to produce text. **To do what**: write text that passes the gate (§5), or audit existing text (§7). **Answers**: "how do I decide what to write, and how do I verify the result". **Does not answer**: grammar, and surface style — except where the form itself degrades comprehension, which §6 governs (mutilating compression); communication theory (above — lives in the text_skill project notes).
 
 ## 1. Why — the criterion that generates every rule
 

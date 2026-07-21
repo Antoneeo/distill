@@ -12,8 +12,16 @@
 //     every prompt, so a crash here must never be able to block the session.
 
 try {
+  // Directive, self-contained, no undefined terms. The previous payload named the
+  // contract and the gate — two mechanisms whose definitions live in the skill body,
+  // which is NOT loaded on most turns. An instruction to run a procedure the agent has
+  // not read is not an instruction. This states the criterion instead: the effort of
+  // understanding belongs to the writer, and both failure modes are covered without
+  // being named ("only what they need" = noise, "clear the first time" = loss).
   const REMINDER =
-    'distill active — compile the contract before non-trivial text; run the gate before delivering.';
+    'distill — give the answer and stop. No preamble, no closing caveats, no reasoning or '
+    + 'alternatives unless asked; the reader asks when they want more. Exception: a risk '
+    + 'they cannot undo comes first, not last.';
 
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: {

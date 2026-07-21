@@ -1,6 +1,6 @@
 {
   "name": "@antoneeo/distill-skill",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Contract-first writing discipline for Claude Code, Gemini CLI, Google Antigravity and Codex: compile the text contract before the prose, close with the loss/noise gate.",
   "keywords": [
     "claude-code",
@@ -38,6 +38,8 @@
     ".claude-plugin/plugin.json",
     ".claude-plugin/marketplace.json",
     "hooks/distill-persist.js",
+    "hooks/distill-gate.js",
+    "hooks/checks.js",
     "scripts/lib.js",
     "scripts/settings.js",
     "scripts/persistence.js",

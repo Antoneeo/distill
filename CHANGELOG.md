@@ -2,6 +2,73 @@
 
 All notable changes to `@antoneeo/distill-skill`.
 
+## [0.4.0] — 2026-07-20
+
+A `Stop` hook that inspects what was actually written. **It never blocks** — this release
+only records what it would have flagged, so the heuristics can be judged on real data before
+any of them is allowed to interrupt a turn.
+
+### Why a second hook
+
+The `UserPromptSubmit` hook from 0.3.0 fires *before* generation, so it can carry the §2
+contract reminder but has no purchase on §5's "run the gate before delivering". The `Stop`
+hook fires after the response is generated and receives `last_assistant_message` — the full
+text — which is the only point in the lifecycle where the gate has something to act on.
+
+Only §6 is mechanised. §2 and §5 are judgment and stay judgment; §6 is a list of surface
+patterns to delete on sight, and those are detectable.
+
+### Added
+
+- `hooks/distill-gate.js` — Stop hook, observational. Honours `stop_hook_active`, fails
+  silently, always exits 0.
+- `hooks/checks.js` — the §6 pattern set as pure functions. Code blocks, inline code, tables
+  and blockquotes are stripped before every check: arrows and terse fragments are legitimate
+  inside code, and a check that fires on a diagram is a false positive by construction.
+- Checks: `ceremonial_opener`, `compliance_announcement`, `status_line`, `meta_narration`,
+  `hedging_chain`, `arrow_chain`, `repeated_sentence`, `unsupported_adjective`. Italian and
+  English, since the assistant writes both.
+
+### Validated against the real eval corpus, not only fixtures
+
+Run over the 20 archived eval outputs:
+
+| | flagged |
+|---|---|
+| without-skill runs | 8 / 8 |
+| with-skill runs | 3 / 12 |
+
+The three with-skill hits are exactly the defects this project recorded by hand — iteration-1
+(before the §6 rule existed), iteration-2/run4, iteration-3/run4 — and iteration-4 is clean
+at 0/4. The checks independently reproduce the 2/3 → 1/4 → 0/4 trajectory that manual
+inspection had found.
+
+A first draft of `compliance_announcement` caught only **2 of ~9** real cases: it required
+"Ho letto la|e" while the corpus shape is "Ho letto *tutto il progetto*" and "Ho esaminato".
+Recall, not precision, was the weak side. Fixed before release, and `status_line` was added
+for the mid-line variant a start-anchored pattern cannot see.
+
+### Privacy — the log is OFF unless you turn it on
+
+**Nothing is written unless `DISTILL_GATE_LOG=1` is set.** With the variable unset the hook
+reads nothing, writes nothing and exits. Any other value ("0", "true", "yes", empty) is also
+off; only the exact string `1` enables it. Asserted by a test.
+
+This matters because the hook otherwise runs on every turn of every session for everyone who
+installs the plugin. A writing skill has no business creating files derived from a user's
+conversations because its author wanted data.
+
+When you do opt in, the log at `~/.claude/distill/gate-log.jsonl` still **never contains the
+message body** — only a timestamp, word count, finding ids and the matched fragment capped
+at 80 characters. Asserted by a canary test that plants a secret in the message and checks
+it never reaches disk.
+
+### Deprecation rescheduled
+
+0.3.0 said `distill-disable-persistence` and `scripts/settings.js` would be removed in 0.4.0.
+**Deferred to 0.5.0.** 0.3.0 was published hours before this release, so it was not a real
+migration window for anyone who enabled the 0.2.0 hook.
+
 ## [0.3.0] — 2026-07-20
 
 The persistence hook now ships through the Claude Code plugin manifest. It no longer touches

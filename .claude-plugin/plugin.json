@@ -17,6 +17,18 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/distill-gate.js\"",
+            "timeout": 5,
+            "statusMessage": "Running the distill gate..."
+          }
+        ]
+      }
     ]
   }
 }
