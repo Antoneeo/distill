@@ -46,10 +46,16 @@ function main() {
   }
   if (!input || typeof input !== 'object') return;
 
-  // Honour the loop guard now, so phase 2 inherits it rather than bolting it on.
-  // When true, this hook has already blocked this response; Claude Code caps consecutive
-  // blocks at 8 and we must yield well before that.
-  if (input.stop_hook_active === true) return;
+  // `stop_hook_active` says whether ANY Stop hook is configured to block -- it is a fact about
+  // configuration, not a re-entrancy counter. Verified against the client's own schema and the
+  // hooks reference; an earlier reading of it as "this hook already blocked" was wrong, and the
+  // "Claude Code caps consecutive blocks at 8" it cited exists in no source.
+  //
+  // So phase 1 does NOT short-circuit on it: this hook never blocks, so it can never be the
+  // cause of a loop, and skipping the log whenever some unrelated blocking Stop hook happens to
+  // be configured would silently starve the very data this phase exists to collect. It is
+  // recorded instead -- phase 2 is the one that has to reason about it before blocking.
+  const stopHookActive = input.stop_hook_active === true;
 
   const message = input.last_assistant_message;
   if (typeof message !== 'string' || message.trim() === '') return;
@@ -69,6 +75,7 @@ function main() {
     stop_reason: typeof input.stop_reason === 'string' ? input.stop_reason : null,
     words,
     findings,                    // {id, excerpt<=80} only -- never the message
+    stop_hook_active: stopHookActive,
     would_block: findings.length > 0,
   });
   fs.appendFileSync(path.join(dir, 'gate-log.jsonl'), `${line}\n`, 'utf8');
