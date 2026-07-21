@@ -630,7 +630,7 @@ test('gate survives malformed stdin', () => {
 test('hooks live in hooks/hooks.json, the channel every first-party plugin uses', () => {
   // Anthropic's own ralph-loop, hookify, security-guidance and the two output-style plugins all
   // declare hooks in hooks/hooks.json and none of them puts a `hooks` key in plugin.json.
-  // The client loads that file automatically; see reference/GUIDE_claude_code_hooks.md.
+  // The client loads that file automatically. Full write-up in the CHANGELOG, 0.4.1.
   const root = path.join(__dirname, '..');
   const manifest = JSON.parse(fs.readFileSync(path.join(root, '.claude-plugin', 'plugin.json'), 'utf8'));
   assert.strictEqual(manifest.name, 'distill');
@@ -646,10 +646,19 @@ test('hooks live in hooks/hooks.json, the channel every first-party plugin uses'
     const cmd = entries[0].hooks[0].command;
     assert.match(cmd, /\$\{CLAUDE_PLUGIN_ROOT\}/,
       `${event} must resolve through \${CLAUDE_PLUGIN_ROOT}, not an absolute path`);
-    // The referenced script must actually exist at that location in the repo.
+    // The referenced script must actually exist at that location in the repo...
     const rel = cmd.match(/\$\{CLAUDE_PLUGIN_ROOT\}\/([^"]+)/)[1];
     assert.ok(fs.existsSync(path.join(root, rel)), `${event} points at a missing file: ${rel}`);
+    // ...and must survive `npm pack`. Existing on disk is not enough: a file absent from
+    // package.json `files` ships as a plugin whose hooks silently do nothing, which is the
+    // exact failure 0.4.1 exists to fix.
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+    assert.ok(pkg.files.includes(rel), `${event} target is not in package.json files: ${rel}`);
   }
+
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.ok(pkg.files.includes('hooks/hooks.json'),
+    'the hook config itself must ship, or the published plugin declares no hooks at all');
 });
 
 test('marketplace manifest carries no key the validator rejects', () => {

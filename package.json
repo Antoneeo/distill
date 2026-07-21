@@ -37,6 +37,7 @@
     "CHANGELOG.md",
     ".claude-plugin/plugin.json",
     ".claude-plugin/marketplace.json",
+    "hooks/hooks.json",
     "hooks/distill-persist.js",
     "hooks/distill-gate.js",
     "hooks/checks.js",
