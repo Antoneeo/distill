@@ -699,13 +699,25 @@ test('every declared bin points at a file that exists, and enable is gone', () =
   }
 });
 
-test('package.json and gemini-extension.json versions stay in sync', () => {
+test('every bump point states the same version, SKILL.md included', () => {
+  // What a client actually gets is ONE file: skills/distill/SKILL.md. No
+  // package.json, no gemini-extension.json, no plugin.json. Without a version in
+  // its frontmatter nothing in an installed copy says which build it is, and
+  // answering "is that fix in yours?" takes `npm view` plus a shasum compare.
+  // The string alone would rot, so what is asserted is the SYNC.
   const root = path.join(__dirname, '..');
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  const gem = JSON.parse(fs.readFileSync(path.join(root, 'gemini-extension.json'), 'utf8'));
-  assert.strictEqual(gem.version, pkg.version, 'gemini-extension.json version drifted');
+  for (const rel of ['gemini-extension.json', path.join('.claude-plugin', 'plugin.json')]) {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, rel), 'utf8'));
+    assert.strictEqual(manifest.version, pkg.version, `${rel} version drifted`);
+  }
   const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
   assert.ok(readme.includes(`Version ${pkg.version}`), `README does not state Version ${pkg.version}`);
+  const skill = fs.readFileSync(path.join(root, 'skills', 'distill', 'SKILL.md'), 'utf8');
+  const m = skill.match(/^version:\s*(\S+)\s*$/m);
+  assert.ok(m, 'SKILL.md frontmatter must carry `version:` — it is the only file a client gets');
+  assert.strictEqual(m[1], pkg.version,
+    `SKILL.md says ${m[1]} and package.json says ${pkg.version}: a version the reader cannot trust is worse than none`);
 });
 
 test('T7 wiring appends and leaves another tool\'s hook byte-identical', () => {

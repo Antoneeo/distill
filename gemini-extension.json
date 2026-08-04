@@ -1,6 +1,6 @@
 {
   "name": "distill-skill",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Contract-first writing discipline: compile the text contract before the prose, close with the loss/noise gate.",
   "author": "Antonio Pinto (https://github.com/Antoneeo)"
 }

@@ -2,6 +2,20 @@
 
 All notable changes to `@antoneeo/distill-skill`.
 
+## [0.4.2] — 2026-08-03
+
+**An installed copy could not say which build it was.** What reaches a client is one file,
+`skills/distill/SKILL.md` — no `package.json`, no `gemini-extension.json`, no
+`plugin.json` — so nothing in it carried a version. Answering "is that fix in your copy?"
+needed `npm view` plus a shasum comparison, and from a user's side it was unanswerable.
+
+- `version:` in the SKILL.md frontmatter, and in `.claude-plugin/plugin.json`, which
+  never had one.
+- The battery's version-sync test now covers **every** bump point — SKILL.md,
+  `package.json`, `gemini-extension.json`, `plugin.json`, README — as one test rather
+  than two overlapping ones. A hand-maintained version string rots; what is asserted is
+  that they all move together.
+
 ## [0.4.1] — 2026-07-21
 
 **0.4.0 shipped a hooks block that produced no hooks.** Both its hooks were dead on the machine
