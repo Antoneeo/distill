@@ -2,6 +2,25 @@
 
 All notable changes to `@antoneeo/distill-skill`.
 
+## [0.8.0] — 2026-08-27
+
+**One channel per client: the installer no longer creates the Claude Code double.**
+Installing both channels put two versions of the same doctrine under one name on Claude
+Code — the plugin's skill and the npm copy — and updating only one of them left the two
+disagreeing (observed live: plugin at 0.7.0, npm copy at 0.4.2, and whichever the model
+loaded decided which doctrine applied).
+
+### Fixed
+
+- `distill-install-skill` (and the npm postinstall) now detects the distill plugin —
+  marketplace clone or `enabledPlugins` entry — and on Claude Code **skips the npm copy**,
+  saying so. Detection fails toward "not present": a corrupt settings.json can never block
+  a normal install.
+- **Migration built in**: an owned leftover npm copy from an earlier install is removed in
+  the same run. Hand-placed copies are never touched (the ownership marker governs, as
+  everywhere else). The inverse drift — plugin behind npm — was already covered by the
+  0.6.0 update lane, which tells you when the plugin is stale.
+
 ## [0.7.0] — 2026-08-27
 
 **The discipline gains its reading half — the same north star, applied to the writer as

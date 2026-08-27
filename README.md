@@ -50,6 +50,11 @@ The installer copies `skills/distill/` into every detected client:
 
 Restart the relevant agent, or reload skills where the CLI supports it.
 
+On Claude Code, if the distill **plugin** is installed, the installer skips the npm copy —
+and removes a leftover one it owns from an earlier install: the plugin already carries the
+skill and the hook there, and two copies of one doctrine under one name drift apart at the
+first single-channel update. Hand-placed copies are never touched.
+
 ### Updating
 
 Neither channel updates on its own. Plugin:
@@ -173,7 +178,7 @@ conversion.
 
 ## Status
 
-Version 0.7.0. The skill text has been through four evaluation iterations; its trigger
+Version 0.8.0. The skill text has been through four evaluation iterations; its trigger
 accuracy has **not** yet been measured against a labeled query set. Treat the trigger
 behavior as unvalidated.
 

@@ -32,6 +32,25 @@ const HOOK_FILENAME = 'distill-persist.js';
 function claudeHome() {
   return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
 }
+
+// The Claude Code plugin channel carries this same skill PLUS the per-turn hook,
+// so when the plugin is present the npm copy in ~/.claude/skills is pure
+// redundancy — worse, it version-drifts: update one channel only and Claude Code
+// carries two disagreeing doctrines under one name. Two cheap probes; any error
+// means "not present", so a broken settings file can never block a normal install.
+function claudePluginPresent() {
+  const home = claudeHome();
+  try {
+    if (fs.existsSync(path.join(home, 'plugins', 'marketplaces', 'distill'))) return true;
+  } catch (e) { /* fall through to the settings probe */ }
+  try {
+    const parsed = JSON.parse(fs.readFileSync(path.join(home, 'settings.json'), 'utf8'));
+    return Boolean(parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      && parsed.enabledPlugins && parsed.enabledPlugins['distill@distill']);
+  } catch (e) {
+    return false;
+  }
+}
 function hooksDir() {
   return path.join(claudeHome(), 'hooks');
 }
@@ -213,6 +232,7 @@ module.exports = {
   HOOK_SOURCE,
   HOOK_FILENAME,
   claudeHome,
+  claudePluginPresent,
   hooksDir,
   installedHookPath,
   settingsPath,

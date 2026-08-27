@@ -945,3 +945,72 @@ test('an equal or older cached version adds nothing', () => {
   const ctx = runPersistHook({ CLAUDE_CONFIG_DIR: home });
   assert.strictEqual(ctx.split('\n').length, 1);
 });
+
+// --- plugin-aware install (0.8.0): one channel per client on Claude Code ------
+
+test('claudePluginPresent: marketplace dir, enabledPlugins, absence, corrupt settings', () => {
+  const home = tempHome('plugin-probe');
+  const claude = path.join(home, '.claude');
+  // claudeHome() reads the env at CALL time, so freshLib's require-time env swap
+  // does not cover it: set and restore the variable around the calls instead.
+  const saved = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = claude;
+  try {
+    const lib = require('./lib');
+
+    assert.strictEqual(lib.claudePluginPresent(), false, 'nothing there = not present');
+
+    fs.mkdirSync(path.join(claude), { recursive: true });
+    fs.writeFileSync(path.join(claude, 'settings.json'), '{not json', 'utf8');
+    assert.strictEqual(lib.claudePluginPresent(), false, 'corrupt settings must fail toward "not present"');
+
+    fs.writeFileSync(path.join(claude, 'settings.json'),
+      JSON.stringify({ enabledPlugins: { 'distill@distill': true } }), 'utf8');
+    assert.strictEqual(lib.claudePluginPresent(), true, 'enabledPlugins entry counts');
+
+    fs.writeFileSync(path.join(claude, 'settings.json'), '{}', 'utf8');
+    fs.mkdirSync(path.join(claude, 'plugins', 'marketplaces', 'distill'), { recursive: true });
+    assert.strictEqual(lib.claudePluginPresent(), true, 'marketplace clone counts');
+  } finally {
+    if (saved === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = saved;
+  }
+});
+
+test('postinstall skips the Claude Code copy when the plugin is present', () => {
+  const home = tempHome('plugin-skip');
+  fs.mkdirSync(path.join(home, '.claude', 'plugins', 'marketplaces', 'distill'), { recursive: true });
+
+  const out = runScript(POSTINSTALL, home);
+  assert.match(out, /owned by the distill plugin/);
+  assert.ok(!fs.existsSync(path.join(home, '.claude', 'skills', 'distill')),
+    'npm copy must not be installed next to the plugin');
+  assert.ok(fs.existsSync(path.join(home, '.codex', 'skills', 'distill', 'SKILL.md')),
+    'the other clients still get their copy');
+});
+
+test('postinstall migrates an owned leftover copy away when the plugin is present', () => {
+  const home = tempHome('plugin-migrate');
+  fs.mkdirSync(path.join(home, '.claude', 'plugins', 'marketplaces', 'distill'), { recursive: true });
+  const target = path.join(home, '.claude', 'skills', 'distill');
+  fs.mkdirSync(target, { recursive: true });
+  fs.writeFileSync(path.join(target, 'SKILL.md'), 'old npm copy', 'utf8');
+  fs.writeFileSync(path.join(target, MARKER_NAME),
+    JSON.stringify({ package: '@antoneeo/distill-skill', version: '0.4.2' }), 'utf8');
+
+  const out = runScript(POSTINSTALL, home);
+  assert.match(out, /Migrated/);
+  assert.ok(!fs.existsSync(target), 'owned leftover must be removed');
+});
+
+test('postinstall leaves a hand-placed Claude copy alone even with the plugin present', () => {
+  const home = tempHome('plugin-foreign');
+  fs.mkdirSync(path.join(home, '.claude', 'plugins', 'marketplaces', 'distill'), { recursive: true });
+  const target = path.join(home, '.claude', 'skills', 'distill');
+  fs.mkdirSync(target, { recursive: true });
+  fs.writeFileSync(path.join(target, 'SKILL.md'), 'NOT OURS', 'utf8');
+
+  const out = runScript(POSTINSTALL, home);
+  assert.match(out, /Left .* in place/);
+  assert.ok(fs.existsSync(path.join(target, 'SKILL.md')), 'unowned dir must survive');
+});

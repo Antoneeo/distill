@@ -5,10 +5,12 @@ const {
   SKILL_SOURCE,
   CLIENTS,
   clientDetected,
+  claudePluginPresent,
   skillTarget,
   isOwned,
   writeMarker,
   copyRecursive,
+  removeSkill,
 } = require('./lib');
 
 const { version } = require('../package.json');
@@ -60,6 +62,20 @@ for (const client of CLIENTS) {
   if (clientDetected(client)) {
     console.log(`✅ Detected: ${client.label}`);
     detected = true;
+    // On Claude Code the plugin channel owns the skill AND the per-turn hook.
+    // Installing the npm copy next to it would put two versions of the same
+    // doctrine under one name, drifting apart at the first single-channel
+    // update. So: skip the install, and migrate away an owned copy a previous
+    // npm install left behind. Hand-placed copies are never touched (removeSkill
+    // refuses anything without our ownership marker).
+    if (client.key === 'claude' && claudePluginPresent()) {
+      console.log('⏭️  Claude Code is owned by the distill plugin (skill + per-turn hook); npm copy not installed.');
+      const state = removeSkill(client, console.log);
+      if (state === 'removed') {
+        console.log('   Migrated: the redundant npm copy from a previous install was removed.');
+      }
+      continue;
+    }
     installSkill(client);
   }
 }
