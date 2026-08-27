@@ -61,9 +61,9 @@ It arrives with the plugin — `.claude-plugin/plugin.json` declares it as a `Us
 hook and Claude Code loads it natively. There is nothing to enable, and nothing is written to
 your `settings.json`.
 
-To turn it off, disable or uninstall the plugin. The hook is one line of context (~55 tokens —
-the discipline in miniature since 0.5.0) per prompt and fails open: any internal error exits
-silently rather than blocking your prompt.
+To turn it off, disable or uninstall the plugin. The hook is one line of context (~110 tokens —
+the discipline in miniature: since 0.7.0 both halves, reading and writing) per prompt and fails
+open: any internal error exits silently rather than blocking your prompt.
 
 Installing the skill via npm does **not** give you the hook. Only the plugin does, and only on
 Claude Code — Gemini CLI, Codex and Antigravity get the doctrine with no mechanism behind it.
@@ -156,7 +156,7 @@ conversion.
 
 ## Status
 
-Version 0.6.0. The skill text has been through four evaluation iterations; its trigger
+Version 0.7.0. The skill text has been through four evaluation iterations; its trigger
 accuracy has **not** yet been measured against a labeled query set. Treat the trigger
 behavior as unvalidated.
 

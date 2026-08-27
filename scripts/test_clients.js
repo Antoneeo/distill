@@ -816,7 +816,16 @@ test('the hook emits one line of additionalContext and exits 0', () => {
   const ctx = parsed.hookSpecificOutput.additionalContext;
   assert.match(ctx, /^distill/, 'must identify its source among other tools\' hooks');
   assert.strictEqual(ctx.split('\n').length, 1, 'payload must stay one line');
-  assert.ok(ctx.length < 260, `payload must stay small, got ${ctx.length} chars`);
+  // <260 through 0.6.0; raised to <500 in 0.7.0 when the reading half joined the
+  // writing half (both sides of the channel in one payload). Still a hard budget:
+  // this line is paid on every prompt by every user.
+  assert.ok(ctx.length < 500, `payload must stay small, got ${ctx.length} chars`);
+  // Both halves must be present: reading (restate / recompress) before writing
+  // (answer first / arrow chains) — the 0.7.0 merge must not silently lose one.
+  for (const anchor of ['restate', 'recompress', 'answer first', 'arrow chains']) {
+    assert.ok(ctx.toLowerCase().includes(anchor),
+      `payload lost a half of the discipline: "${anchor}"`);
+  }
   // The payload must stand alone: the skill body is not loaded on most turns, so naming
   // its internal machinery would instruct the agent to run a procedure it has not read.
   for (const jargon of ['contract', 'the gate', 'payload', 'distillate']) {
@@ -899,7 +908,7 @@ test('a newer cached version adds ONE notification line, once', () => {
   const lines = first.split('\n');
   assert.strictEqual(lines.length, 2, 'reminder + one notification line');
   assert.match(lines[0], /^distill/, 'first line stays the untouched reminder');
-  assert.ok(lines[0].length < 260, 'reminder budget unchanged by the lane');
+  assert.ok(lines[0].length < 500, 'reminder budget unchanged by the lane');
   assert.match(lines[1], /99\.0\.0/);
   assert.match(lines[1], /update/i);
   assert.strictEqual(readUpdateCache(home).notified, '99.0.0', 'marker persisted');

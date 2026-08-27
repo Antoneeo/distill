@@ -79,18 +79,22 @@ function updateNotification() {
 try {
   // Directive, self-contained, no undefined terms: an instruction to run a procedure the
   // agent has not read is not an instruction, so the payload never names skill-internal
-  // machinery — it IS the discipline in miniature. The previous payload carried only the
-  // form criterion (answer first, no preamble); 195 turns of phase-1 gate data showed
-  // what that leaves uncovered: 56% of replies would have been flagged, arrow chains 92
-  // times (the §6 mutilation the form criterion never mentions), and content noise —
-  // process narration, unselected assertions — which no Stop-hook heuristic can see at
-  // all. So the payload now also carries selection (who reads, what they do next, ≤5
-  // assertions) and the two bans the data demanded. Same one-line, <260-char budget.
+  // machinery — it IS the discipline in miniature. Two halves, one north star (§2):
+  // the READING half (restate before answering, kill alternatives only by a named fact,
+  // recompress the question when options tie) governs the thinking that precedes the
+  // reply — for an autoregressive model a method is real only if it changes generation
+  // ORDER, so it is phrased as a sequence constraint, not an exhortation. The WRITING
+  // half (selection, answer-first, the §6 bans) is the 0.5.0 payload, justified then by
+  // 195 turns of phase-1 gate data (56% flagged, arrow chains 92×). One line still; the
+  // budget rose from <260 to <500 chars when the reading half joined — both sides of
+  // the channel now ride in one payload, per version, not per turn.
   const REMINDER =
-    'distill — decide who reads and what they do next; write only what serves that '
-    + '(≤5 assertions). Answer first, stop. Complete sentences — no arrow chains '
-    + 'or fragments. No preamble, no process narration, no unasked alternatives. '
-    + 'Irreversible risks come first.';
+    'distill — first, in thinking: restate their point in its strongest form (cannot '
+    + 'write it = keep reading); kill an alternative only by naming the killing fact, '
+    + 'keep it on the map; options that tie = recompress the question. Then write only '
+    + 'what serves the reader’s next action (≤5 assertions): answer first, complete '
+    + 'sentences — no arrow chains, no preamble, no process narration. Declare the '
+    + 'unverified; irreversible risks come first.';
 
   let context = REMINDER;
   try {
