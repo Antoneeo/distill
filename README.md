@@ -50,6 +50,23 @@ The installer copies `skills/distill/` into every detected client:
 
 Restart the relevant agent, or reload skills where the CLI supports it.
 
+### Updating
+
+Neither channel updates on its own. Plugin:
+
+```bash
+claude plugin marketplace update distill && claude plugin update distill@distill
+```
+
+then restart Claude Code. (The hook notifies you in-conversation when a new version
+exists — see *Update notification* below — and updating stays your act.) npm:
+
+```bash
+npm install -g @antoneeo/distill-skill@latest && distill-install-skill
+```
+
+The installer refreshes every skill copy it owns; hand-edited copies are left alone.
+
 ## Persistence hook (Claude Code plugin only)
 
 A skill can drift: it is loaded once, applied to the first text, then quietly skipped as the
