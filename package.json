@@ -1,6 +1,6 @@
 {
   "name": "@antoneeo/distill-skill",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Contract-first writing discipline for Claude Code, Gemini CLI, Google Antigravity and Codex: compile the text contract before the prose, close with the loss/noise gate.",
   "keywords": [
     "claude-code",

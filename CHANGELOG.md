@@ -2,7 +2,7 @@
 
 All notable changes to `@antoneeo/distill-skill`.
 
-## [Unreleased]
+## [0.5.0] — 2026-08-27
 
 **The per-turn reminder carried the form, not the discipline — and 195 turns of phase-1
 gate data proved it.** 56% of logged replies would have been flagged; the dominant
@@ -20,6 +20,13 @@ generation.
   "ALWAYS use before long chat replies" never fired — a skill is pull, the model never
   pulls mid-conversation. The declared boundary now: documents and audits load the
   skill; chat replies are governed by the hook. §2 Proportionality says the same.
+
+### Deprecation rescheduled, again
+
+0.4.0 deferred the removal of `distill-disable-persistence` and `scripts/settings.js`
+to 0.5.0. **Deferred to 0.6.0**: this release is the hook-payload fix, and the removal
+means restructuring the settings-wiring half of the test battery — its own unit of
+work, not a rider on this one.
 
 ## [0.4.2] — 2026-08-03
 

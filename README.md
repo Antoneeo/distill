@@ -138,7 +138,7 @@ conversion.
 
 ## Status
 
-Version 0.4.2. The skill text has been through four evaluation iterations; its trigger
+Version 0.5.0. The skill text has been through four evaluation iterations; its trigger
 accuracy has **not** yet been measured against a labeled query set. Treat the trigger
 behavior as unvalidated.
 
