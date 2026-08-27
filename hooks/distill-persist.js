@@ -12,16 +12,20 @@
 //     every prompt, so a crash here must never be able to block the session.
 
 try {
-  // Directive, self-contained, no undefined terms. The previous payload named the
-  // contract and the gate — two mechanisms whose definitions live in the skill body,
-  // which is NOT loaded on most turns. An instruction to run a procedure the agent has
-  // not read is not an instruction. This states the criterion instead: the effort of
-  // understanding belongs to the writer, and both failure modes are covered without
-  // being named ("only what they need" = noise, "clear the first time" = loss).
+  // Directive, self-contained, no undefined terms: an instruction to run a procedure the
+  // agent has not read is not an instruction, so the payload never names skill-internal
+  // machinery — it IS the discipline in miniature. The previous payload carried only the
+  // form criterion (answer first, no preamble); 195 turns of phase-1 gate data showed
+  // what that leaves uncovered: 56% of replies would have been flagged, arrow chains 92
+  // times (the §6 mutilation the form criterion never mentions), and content noise —
+  // process narration, unselected assertions — which no Stop-hook heuristic can see at
+  // all. So the payload now also carries selection (who reads, what they do next, ≤5
+  // assertions) and the two bans the data demanded. Same one-line, <260-char budget.
   const REMINDER =
-    'distill — give the answer and stop. No preamble, no closing caveats, no reasoning or '
-    + 'alternatives unless asked; the reader asks when they want more. Exception: a risk '
-    + 'they cannot undo comes first, not last.';
+    'distill — decide who reads and what they do next; write only what serves that '
+    + '(≤5 assertions). Answer first, stop. Complete sentences — no arrow chains '
+    + 'or fragments. No preamble, no process narration, no unasked alternatives. '
+    + 'Irreversible risks come first.';
 
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: {

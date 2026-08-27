@@ -1,7 +1,7 @@
 ---
 name: distill
 version: 0.4.2
-description: "Contract-first writing discipline that distills text to all signal: before writing, compile the text contract (reader, action, payload of assertions, abstraction level, form), then close with the loss/noise gate. ALWAYS use before writing or rewriting any non-trivial text — documents, handoffs, reports, ADRs, analyses, READMEs, agent-facing docs, long chat replies — and whenever the user asks to shorten, tighten, condense, distill, rewrite, or audit an existing text, even if they don't name this skill."
+description: "Contract-first writing discipline that distills text to all signal: before writing, compile the text contract (reader, action, payload of assertions, abstraction level, form), then close with the loss/noise gate. ALWAYS use before writing or rewriting any non-trivial document — handoffs, reports, ADRs, analyses, READMEs, agent-facing docs — and whenever the user asks to shorten, tighten, condense, distill, rewrite, or audit an existing text, even if they don't name this skill. Chat replies are governed by the per-turn persistence hook, which carries this discipline in miniature; load the skill when a reply grows into a document."
 ---
 
 # distill — text is written contract-first
@@ -43,7 +43,7 @@ Action (field 2) precedes payload (field 3) because it is the selection criterio
 - document for humans (report, client) → invisible in the deliverable; keep it where production is kept (proposal notes, commit message);
 - document for agents → **it fuses with the document** (§4): never staple it on top duplicating the assertions — two copies of the same information diverge at the first edit.
 
-**Proportionality.** Trivial texts (confirmations, one-line answers): no contract, only the north star. Substantial chat replies: implicit contract in your thinking, zero visible cost. Documents: explicit contract before writing.
+**Proportionality.** Trivial texts (confirmations, one-line answers): no contract, only the north star. Substantial chat replies: implicit contract in your thinking, zero visible cost — this is what the per-turn persistence hook re-asserts at every prompt, because a skill invoked on demand never fires for chat. Documents: explicit contract before writing.
 
 **Persistence.** The discipline does not lapse mid-session. It governs every text you produce from the moment it loads — at the proportion above, not only the first document after loading. The failure mode is drift: the contract gets compiled for the first text, then quietly skipped for the next three while the register slides back. If you are unsure whether it still applies, it does.
 

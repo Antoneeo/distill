@@ -2,6 +2,25 @@
 
 All notable changes to `@antoneeo/distill-skill`.
 
+## [Unreleased]
+
+**The per-turn reminder carried the form, not the discipline — and 195 turns of phase-1
+gate data proved it.** 56% of logged replies would have been flagged; the dominant
+finding was `arrow_chain` (92 hits — the §6 mutilating compression the reminder never
+mentioned), while the one thing the reminder did ban (compliance announcements) fired
+once. Content noise — unselected assertions, process narration — is invisible to the
+Stop-hook heuristics entirely, so the only place it can be governed is before
+generation.
+
+- **The persistence hook now carries the discipline in miniature**: selection (who
+  reads, what they do next, ≤5 assertions serving that action), answer-first, complete
+  sentences with arrow chains and fragments named as bans, no process narration. Same
+  one-line, <260-char budget; still no skill-internal terms.
+- **The skill description stops promising what an on-demand skill cannot keep.**
+  "ALWAYS use before long chat replies" never fired — a skill is pull, the model never
+  pulls mid-conversation. The declared boundary now: documents and audits load the
+  skill; chat replies are governed by the hook. §2 Proportionality says the same.
+
 ## [0.4.2] — 2026-08-03
 
 **An installed copy could not say which build it was.** What reaches a client is one file,
