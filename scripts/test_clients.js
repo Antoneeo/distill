@@ -807,6 +807,9 @@ test('unwire on a file that only ever had our entry leaves no empty scaffolding'
 test('the hook emits one line of additionalContext and exits 0', () => {
   const out = execFileSync(process.execPath, [path.join(__dirname, '..', 'hooks', 'distill-persist.js')], {
     encoding: 'utf8',
+    // Isolated home + update lane off: the baseline payload must not depend on
+    // any real update-check cache on the machine running the battery.
+    env: { ...process.env, CLAUDE_CONFIG_DIR: tempHome('hook-baseline'), DISTILL_NO_UPDATE_CHECK: '1' },
   });
   const parsed = JSON.parse(out);
   assert.strictEqual(parsed.hookSpecificOutput.hookEventName, 'UserPromptSubmit');
@@ -831,4 +834,105 @@ test('T2 uninstall leaves an unowned skill dir untouched', () => {
   const out = runScript(PREUNINSTALL, home);
   assert.match(out, /Left .* in place/);
   assert.ok(fs.existsSync(path.join(target, 'SKILL.md')), 'unowned dir must survive uninstall');
+});
+
+// --- update lane (0.6.0): worker + notification ------------------------------
+
+const PERSIST_HOOK = path.join(__dirname, '..', 'hooks', 'distill-persist.js');
+const UPDATE_WORKER = path.join(__dirname, '..', 'hooks', 'update-check.js');
+const { cmpVersions, shouldCheck, CHECK_INTERVAL_MS } = require('../hooks/update-check');
+
+// Every hook run in these tests keeps `checkedAt` fresh in the fixture cache, so
+// the hook never spawns a live worker (a real worker would hit the registry).
+function writeUpdateCache(home, cache) {
+  const dir = path.join(home, 'distill');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'update-check.json'), JSON.stringify(cache), 'utf8');
+}
+function readUpdateCache(home) {
+  return JSON.parse(fs.readFileSync(path.join(home, 'distill', 'update-check.json'), 'utf8'));
+}
+function runPersistHook(env) {
+  const out = execFileSync(process.execPath, [PERSIST_HOOK], {
+    encoding: 'utf8',
+    env: { ...process.env, ...env },
+  });
+  return JSON.parse(out).hookSpecificOutput.additionalContext;
+}
+
+test('cmpVersions compares numerically and treats malformed input as equal', () => {
+  assert.ok(cmpVersions('0.5.0', '0.6.0') < 0);
+  assert.ok(cmpVersions('0.6.0', '0.5.0') > 0);
+  assert.strictEqual(cmpVersions('1.2.3', '1.2.3'), 0);
+  assert.ok(cmpVersions('0.9.0', '0.10.0') < 0, 'numeric, not lexicographic');
+  // Malformed must mean "no action", never a notification.
+  assert.strictEqual(cmpVersions('abc', '1.0.0'), 0);
+  assert.strictEqual(cmpVersions('1.0', '1.0.0'), 0);
+});
+
+test('shouldCheck: missing or stale cache checks, a fresh one does not', () => {
+  const now = Date.now();
+  assert.strictEqual(shouldCheck(null, now), true);
+  assert.strictEqual(shouldCheck({}, now), true);
+  assert.strictEqual(shouldCheck({ checkedAt: 'not-a-date' }, now), true);
+  assert.strictEqual(shouldCheck({ checkedAt: new Date(now - 1000).toISOString() }, now), false);
+  assert.strictEqual(
+    shouldCheck({ checkedAt: new Date(now - CHECK_INTERVAL_MS - 1000).toISOString() }, now), true);
+});
+
+test('DISTILL_NO_UPDATE_CHECK=1 stops the worker before any network or write', () => {
+  const home = tempHome('worker-off');
+  execFileSync(process.execPath, [UPDATE_WORKER], {
+    env: { ...process.env, CLAUDE_CONFIG_DIR: home, DISTILL_NO_UPDATE_CHECK: '1' },
+  });
+  assert.ok(!fs.existsSync(path.join(home, 'distill', 'update-check.json')),
+    'opted-out worker must not create the cache file');
+});
+
+test('a newer cached version adds ONE notification line, once', () => {
+  const home = tempHome('notify');
+  writeUpdateCache(home, {
+    checkedAt: new Date().toISOString(), latest: '99.0.0', notified: null, updatedTo: null,
+  });
+
+  const first = runPersistHook({ CLAUDE_CONFIG_DIR: home });
+  const lines = first.split('\n');
+  assert.strictEqual(lines.length, 2, 'reminder + one notification line');
+  assert.match(lines[0], /^distill/, 'first line stays the untouched reminder');
+  assert.ok(lines[0].length < 260, 'reminder budget unchanged by the lane');
+  assert.match(lines[1], /99\.0\.0/);
+  assert.match(lines[1], /update/i);
+  assert.strictEqual(readUpdateCache(home).notified, '99.0.0', 'marker persisted');
+
+  const second = runPersistHook({ CLAUDE_CONFIG_DIR: home });
+  assert.strictEqual(second.split('\n').length, 1, 'same version never announces twice');
+});
+
+test('an auto-installed version announces the restart instead of the update', () => {
+  const home = tempHome('notify-updated');
+  writeUpdateCache(home, {
+    checkedAt: new Date().toISOString(), latest: '99.0.0', notified: null, updatedTo: '99.0.0',
+  });
+  const ctx = runPersistHook({ CLAUDE_CONFIG_DIR: home });
+  const lines = ctx.split('\n');
+  assert.strictEqual(lines.length, 2);
+  assert.match(lines[1], /restart/i);
+});
+
+test('DISTILL_NO_UPDATE_CHECK=1 silences the notification lane in the hook too', () => {
+  const home = tempHome('notify-off');
+  writeUpdateCache(home, {
+    checkedAt: new Date().toISOString(), latest: '99.0.0', notified: null, updatedTo: null,
+  });
+  const ctx = runPersistHook({ CLAUDE_CONFIG_DIR: home, DISTILL_NO_UPDATE_CHECK: '1' });
+  assert.strictEqual(ctx.split('\n').length, 1);
+});
+
+test('an equal or older cached version adds nothing', () => {
+  const home = tempHome('notify-equal');
+  writeUpdateCache(home, {
+    checkedAt: new Date().toISOString(), latest: '0.0.1', notified: null, updatedTo: null,
+  });
+  const ctx = runPersistHook({ CLAUDE_CONFIG_DIR: home });
+  assert.strictEqual(ctx.split('\n').length, 1);
 });

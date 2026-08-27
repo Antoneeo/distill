@@ -24,7 +24,7 @@ for (const client of CLIENTS) {
 const hook = removePersistence();
 if (hook.error) {
   console.log(`⚠️  Persistence hook: ${hook.error}`);
-  console.log('   Remove it by hand, or fix the file and run distill-disable-persistence.');
+  console.log('   Remove it by hand, or fix the file and re-run distill-uninstall-skill.');
 }
 
 if (tally.removed === 0 && tally.foreign === 0 && !hook.unwired && !hook.fileRemoved) {

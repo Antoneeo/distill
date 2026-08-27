@@ -1,6 +1,6 @@
 {
   "name": "distill",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Contract-first writing discipline. Compile the text contract before the prose, then close with the loss/noise gate.",
   "author": {
     "name": "Antonio Pinto",

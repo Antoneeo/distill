@@ -2,6 +2,42 @@
 
 All notable changes to `@antoneeo/distill-skill`.
 
+## [0.6.0] — 2026-08-27
+
+**Neither distribution channel updates on its own — verified live: a restart updated
+nothing until the marketplace and plugin update commands ran.** So the plugin now tells
+you, and can optionally act.
+
+### Added — update notification (default) and auto-update (opt-in), plugin channel only
+
+- `hooks/update-check.js`: a detached worker the persistence hook spawns at most once a
+  day. It GETs the package metadata from `registry.npmjs.org` (the same anonymous request
+  `npm install` makes; nothing about you or the session is sent) and writes a small cache
+  under `~/.claude/distill/`. The prompt path never touches the network: the hook only
+  reads that cache.
+- When a newer version exists, the per-turn reminder gains ONE extra line — shown once per
+  new version, then silenced by a `notified` marker. An update-nag on every turn would be
+  the noise this skill exists to remove.
+- **`DISTILL_AUTO_UPDATE=1` (opt-in, default off):** the worker runs
+  `claude plugin marketplace update distill` + `claude plugin update distill@distill`
+  itself; the change applies at the next client restart and the one-time line announces
+  the restart instead of the update. Not the default because auto-update means executing
+  newly published code without per-version consent: a compromised repository would
+  propagate silently. The README states the trade in the same words.
+- **`DISTILL_NO_UPDATE_CHECK=1` opts out of the whole lane**: no network, no cache, no
+  extra line. The npm channel has no lane at all — only the hook file is copied there,
+  and the worker declines to run without the plugin manifest beside it.
+
+### Removed — half of the deprecation, the honest half
+
+- **`distill-disable-persistence` is gone** (promised for 0.4.0, rescheduled twice). The
+  0.2.0 wiring it cleaned is still cleaned by `distill-uninstall-skill`.
+- **`scripts/settings.js` stays, retracting the other half of that promise**: the
+  uninstall path still uses it to unwire a legacy 0.2.0 entry from settings.json. Deleting
+  it would leave those users with a hook command pointing at a removed file — an error on
+  every prompt, the exact failure this package refuses to ship. It is internal machinery
+  now, no longer a user-facing surface.
+
 ## [0.5.0] — 2026-08-27
 
 **The per-turn reminder carried the form, not the discipline — and 195 turns of phase-1

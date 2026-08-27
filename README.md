@@ -25,9 +25,9 @@ This is the only channel that carries the **persistence hook**, which re-asserts
 discipline once per turn so it does not drift over a long session. The hook is declared in
 the plugin manifest and loads with the plugin — nothing is written to your `settings.json`.
 
-**If you installed 0.2.0 and ran `distill-enable-persistence`**, run
-`distill-disable-persistence` *before* installing the plugin. Otherwise the reminder is
-injected twice per turn, once from your settings file and once from the plugin.
+**If you installed 0.2.0 and ran `distill-enable-persistence`**, remove that wiring
+*before* installing the plugin (see *Migrating from 0.2.0* below). Otherwise the reminder
+is injected twice per turn, once from your settings file and once from the plugin.
 
 ### Gemini CLI, Codex, Antigravity — npm
 
@@ -61,23 +61,39 @@ It arrives with the plugin — `.claude-plugin/plugin.json` declares it as a `Us
 hook and Claude Code loads it natively. There is nothing to enable, and nothing is written to
 your `settings.json`.
 
-To turn it off, disable or uninstall the plugin. The hook is one line of context (~15 tokens)
-per prompt and fails open: any internal error exits silently rather than blocking your prompt.
+To turn it off, disable or uninstall the plugin. The hook is one line of context (~55 tokens —
+the discipline in miniature since 0.5.0) per prompt and fails open: any internal error exits
+silently rather than blocking your prompt.
 
 Installing the skill via npm does **not** give you the hook. Only the plugin does, and only on
 Claude Code — Gemini CLI, Codex and Antigravity get the doctrine with no mechanism behind it.
 
+### Update notification and auto-update (plugin only)
+
+Neither the plugin marketplace nor npm updates anything on its own, so the hook carries an
+update lane: a detached worker checks the npm registry **at most once a day** and, when a
+newer version exists, the per-turn reminder gains one extra line — shown **once per new
+version**, then silenced. Updating stays your act (`/plugin`, or
+`claude plugin update distill@distill`).
+
+What leaves your machine: one anonymous GET of the package metadata to `registry.npmjs.org` —
+the same request `npm install` makes; nothing about you or your session is sent. Opt out
+entirely with `DISTILL_NO_UPDATE_CHECK=1` (no network, no cache, no extra line).
+
+**Auto-update is opt-in and off by default**: `DISTILL_AUTO_UPDATE=1` makes the worker run the
+two update commands itself when a newer version appears (applied at the next client restart,
+announced by the same one-time line). It is not the default because it means executing newly
+published code without a per-version consent — if the repository were ever compromised, an
+auto-updating install would follow it silently. Set it only if you accept that trade.
+
 ### Migrating from 0.2.0
 
-0.2.0 wired this hook by editing `~/.claude/settings.json`, via a `distill-enable-persistence`
-command that no longer exists. If you ran it:
-
-```bash
-distill-disable-persistence    # deprecated; removes the 0.2.0 wiring
-```
-
-Run it **before** installing the plugin, or the reminder is injected twice per turn. The
-command is retained for one version and will be removed in 0.4.0.
+0.2.0 wired this hook by editing `~/.claude/settings.json`. The dedicated cleanup command
+(`distill-disable-persistence`) was removed in 0.6.0; the same cleanup still runs inside
+`distill-uninstall-skill`, which unwires the settings.json entry and deletes the copied hook
+file. If you only want the 0.2.0 wiring gone (to avoid a double injection next to the
+plugin), remove the `UserPromptSubmit` entry whose command ends in `distill-persist.js` from
+`~/.claude/settings.json` by hand.
 
 ## Uninstalling
 
@@ -129,16 +145,18 @@ and arrow chains are noise disguised as brevity.
 
 ## When it fires
 
-On writing or rewriting non-trivial text: documents, handoffs, reports, ADRs, analyses,
-READMEs, agent-facing docs, long chat replies — and whenever you ask to shorten, tighten,
-condense, distill, rewrite or audit an existing text.
+On writing or rewriting any non-trivial document: handoffs, reports, ADRs, analyses,
+READMEs, agent-facing docs — and whenever you ask to shorten, tighten, condense, distill,
+rewrite or audit an existing text. Chat replies are governed by the per-turn persistence
+hook instead: an on-demand skill never fires mid-conversation, so since 0.5.0 the skill
+stops promising it would.
 
 It stays out of the way for translation, grammar-only fixes, creative writing and format
 conversion.
 
 ## Status
 
-Version 0.5.0. The skill text has been through four evaluation iterations; its trigger
+Version 0.6.0. The skill text has been through four evaluation iterations; its trigger
 accuracy has **not** yet been measured against a labeled query set. Treat the trigger
 behavior as unvalidated.
 
