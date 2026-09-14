@@ -700,8 +700,8 @@ test('every declared bin points at a file that exists, and enable is gone', () =
 });
 
 test('every bump point states the same version, SKILL.md included', () => {
-  // What a client actually gets is ONE file: skills/distill/SKILL.md. No
-  // package.json, no gemini-extension.json, no plugin.json. Without a version in
+  // What a client actually gets is the skill folder: SKILL.md, LICENSE and NOTICE.
+  // No package.json, no gemini-extension.json, no plugin.json. Without a version in
   // its frontmatter nothing in an installed copy says which build it is, and
   // answering "is that fix in yours?" takes `npm view` plus a shasum compare.
   // The string alone would rot, so what is asserted is the SYNC.
@@ -715,9 +715,62 @@ test('every bump point states the same version, SKILL.md included', () => {
   assert.ok(readme.includes(`Version ${pkg.version}`), `README does not state Version ${pkg.version}`);
   const skill = fs.readFileSync(path.join(root, 'skills', 'distill', 'SKILL.md'), 'utf8');
   const m = skill.match(/^version:\s*(\S+)\s*$/m);
-  assert.ok(m, 'SKILL.md frontmatter must carry `version:` — it is the only file a client gets');
+  assert.ok(m, 'SKILL.md frontmatter must carry `version:` — it is the only file in a client\'s copy that names the build');
   assert.strictEqual(m[1], pkg.version,
     `SKILL.md says ${m[1]} and package.json says ${pkg.version}: a version the reader cannot trust is worse than none`);
+});
+
+// F-055 (agentic-sdlc-skill, ai_docs/solutions/ANALYSIS_apache_license.md): the package
+// says Apache-2.0 and carries the terms that say it. The skill folder is what travels,
+// so the terms sit beside SKILL.md; the package root carries them too.
+test('every place the package states a license says Apache-2.0', () => {
+  const root = path.join(__dirname, '..');
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const plugin = JSON.parse(fs.readFileSync(path.join(root, '.claude-plugin', 'plugin.json'), 'utf8'));
+  const m = fs.readFileSync(path.join(root, 'skills', 'distill', 'SKILL.md'), 'utf8').match(/^license:\s*(\S+)\s*$/m);
+  assert.ok(m, 'SKILL.md frontmatter must carry `license:` — an installed copy has no package.json to say it');
+  assert.deepStrictEqual([pkg.license, plugin.license, m[1]], ['Apache-2.0', 'Apache-2.0', 'Apache-2.0'],
+    'package.json, plugin.json and SKILL.md must all say Apache-2.0');
+});
+
+test('the license text is the canonical Apache-2.0, at the root and in the skill folder', () => {
+  // SHA-256 of https://www.apache.org/licenses/LICENSE-2.0.txt, LF line endings.
+  const canonical = 'cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30';
+  const root = path.join(__dirname, '..');
+  for (const dir of [root, path.join(root, 'skills', 'distill')]) {
+    const p = path.join(dir, 'LICENSE');
+    assert.ok(fs.existsSync(p), `no LICENSE in ${dir}`);
+    const lf = Buffer.from(fs.readFileSync(p).toString('binary').replace(/\r\n/g, '\n'), 'binary');
+    const sha = require('crypto').createHash('sha256').update(lf).digest('hex');
+    assert.strictEqual(sha, canonical, `${p} is not the canonical Apache-2.0 text`);
+  }
+});
+
+test('the package root and the skill folder carry one NOTICE', () => {
+  const root = path.join(__dirname, '..');
+  const notice = (dir) => {
+    const p = path.join(dir, 'NOTICE');
+    assert.ok(fs.existsSync(p), `no NOTICE in ${dir}`);
+    return fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
+  };
+  assert.strictEqual(notice(root), notice(path.join(root, 'skills', 'distill')),
+    'the package root and the skill folder carry different NOTICEs');
+});
+
+test('the tarball carries the terms', () => {
+  // `files` is an allowlist: npm packs a root LICENSE unasked, and nothing else.
+  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+  for (const rel of ['NOTICE', 'skills/distill/LICENSE', 'skills/distill/NOTICE']) {
+    assert.ok(pkg.files.includes(rel),
+      `'${rel}' is not in package.json files: the published package would ship without it`);
+  }
+});
+
+test('the README keeps the permission for use in your own project', () => {
+  // Published on the npm page. Whitespace-normalized, so a rewrap cannot hide it.
+  const readme = fs.readFileSync(path.join(__dirname, '..', 'README.md'), 'utf8').split(/\s+/).join(' ');
+  assert.ok(readme.includes('Using the skill in your own project carries no obligation'),
+    "the README lost the permission for use inside a user's own project");
 });
 
 test('T7 wiring appends and leaves another tool\'s hook byte-identical', () => {

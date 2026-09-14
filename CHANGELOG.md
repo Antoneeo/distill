@@ -2,6 +2,16 @@
 
 All notable changes to `@antoneeo/distill-skill`.
 
+## [Unreleased - 0.9.0]
+
+**Apache-2.0 with a NOTICE, in place of MIT.** The package root and the installed skill
+folder now carry `LICENSE` (the Apache-2.0 text) and `NOTICE` (the attribution), and
+`package.json`, `.claude-plugin/plugin.json` and the `SKILL.md` frontmatter say
+`Apache-2.0`. Redistributing the skill, or a version you modified, means keeping both
+files; using it in your own project carries no obligation (README, License). Versions up
+to 0.8.0 remain available under MIT. The README also asks, as a request and not a condition, for a
+mention when the skill is used in commercial work.
+
 ## [0.8.0] — 2026-08-27
 
 **One channel per client: the installer no longer creates the Claude Code double.**

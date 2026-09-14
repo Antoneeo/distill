@@ -13,7 +13,7 @@
     "ai-agent"
   ],
   "author": "Antonio Pinto (https://github.com/Antoneeo)",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "publishConfig": {
     "access": "public"
   },
@@ -31,9 +31,12 @@
   },
   "files": [
     "skills/distill/SKILL.md",
+    "skills/distill/LICENSE",
+    "skills/distill/NOTICE",
     "gemini-extension.json",
     "README.md",
     "CHANGELOG.md",
+    "NOTICE",
     ".claude-plugin/plugin.json",
     ".claude-plugin/marketplace.json",
     "hooks/hooks.json",
