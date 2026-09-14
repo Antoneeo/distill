@@ -1,6 +1,6 @@
 ---
 name: distill
-version: 0.8.0
+version: 0.9.0
 description: "Contract-first writing discipline that distills text to all signal: before writing, compile the text contract (reader, action, payload of assertions, abstraction level, form), then close with the loss/noise gate. ALWAYS use before writing or rewriting any non-trivial document — handoffs, reports, ADRs, analyses, READMEs, agent-facing docs — and whenever the user asks to shorten, tighten, condense, distill, rewrite, or audit an existing text, even if they don't name this skill. Chat replies are governed by the per-turn persistence hook, which carries this discipline in miniature; load the skill when a reply grows into a document."
 license: Apache-2.0
 ---

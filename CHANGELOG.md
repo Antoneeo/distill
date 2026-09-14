@@ -2,7 +2,7 @@
 
 All notable changes to `@antoneeo/distill-skill`.
 
-## [Unreleased - 0.9.0]
+## [0.9.0] — 2026-09-14
 
 **Apache-2.0 with a NOTICE, in place of MIT.** The package root and the installed skill
 folder now carry `LICENSE` (the Apache-2.0 text) and `NOTICE` (the attribution), and
